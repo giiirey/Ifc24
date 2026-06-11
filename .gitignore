@@ -1,0 +1,52 @@
+# Rust
+/target
+**/*.rs.bk
+Cargo.lock
+
+# Dependencies
+**/node_modules
+!.opencode/node_modules
+!app/package-lock.json
+
+# Build artifacts
+/dist
+/build
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Tauri
+src-tauri/target/
+src-tauri/packages/
+
+# Logs
+*.log
+logs/
+
+# Env files
+.env
+.env.*
+!.env.example
+
+# Opencode
+.opencode/
+opencode.json
+
+# Release binaries (optional, uncomment if needed)
+# *.dmg
+# *.deb
+# *.rpm
+# *.AppImage
+# *.exe
+# *.msi
+# *.tar.gz
+# *.zip
