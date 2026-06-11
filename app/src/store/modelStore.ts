@@ -12,7 +12,8 @@ export interface MeshItem {
   entity_id: number;
   vertices: number[];
   indices: number[];
-  material: { name: string; color_diffuse: [number, number, number] };
+  material: { name: string; color_diffuse: [number, number, number]; opacity?: number; roughness?: number; metalness?: number };
+  bbox: { min: [number, number, number]; max: [number, number, number] } | null;
 }
 
 interface ModelStore {
@@ -20,6 +21,8 @@ interface ModelStore {
   entities: Map<number, EntityInfo>;
   treeNodes: TreeNodeData[];
   meshes: Map<number, MeshItem[]>;
+  loadedFilePath: string | null;
+  remainingIds: number[];
   
   // UI state
   selectedEntityId: number | null;
@@ -28,6 +31,8 @@ interface ModelStore {
   // Loading state
   isLoading: boolean;
   loadProgress: number;
+  batchLoadedCount: number;
+  totalBatchCount: number;
   
   // Actions
   setEntities: (entities: Map<number, EntityInfo>) => void;
@@ -35,6 +40,10 @@ interface ModelStore {
   toggleExpand: (id: number) => void;
   setMeshes: (entityId: number, meshes: MeshItem[]) => void;
   setLoading: (loading: boolean, progress?: number) => void;
+  setHierarchy: (nodes: TreeNodeData[]) => void;
+  setLoadedFilePath: (path: string | null) => void;
+  setRemainingIds: (ids: number[]) => void;
+  updateBatchProgress: (loaded: number, total: number) => void;
   
   // Clear
   clearModel: () => void;
@@ -51,17 +60,20 @@ export const useModelStore = create<ModelStore>((set, get) => ({
   entities: new Map(),
   treeNodes: [],
   meshes: new Map(),
+  loadedFilePath: null,
+  remainingIds: [],
   selectedEntityId: null,
   expandedIds: new Set(),
   isLoading: false,
   loadProgress: 0,
+  batchLoadedCount: 0,
+  totalBatchCount: 0,
 
   setEntities: (entities) => set({ entities }),
   
   selectEntity: (id) => {
     set({ selectedEntityId: id });
     if (id !== null && get().treeNodes.length > 0) {
-      // Expand tree to the selected node
       const expanded = new Set(get().expandedIds);
       expandToNode(get().treeNodes, id, expanded);
       set({ expandedIds: expanded });
@@ -87,6 +99,14 @@ export const useModelStore = create<ModelStore>((set, get) => ({
 
   setLoading: (loading, progress = 0) => set({ isLoading: loading, loadProgress: progress }),
   
+  setHierarchy: (nodes) => set({ treeNodes: nodes }),
+  
+  setLoadedFilePath: (path) => set({ loadedFilePath: path }),
+  
+  setRemainingIds: (ids) => set({ remainingIds: ids, batchLoadedCount: 0, totalBatchCount: Math.ceil(ids.length / 200) }),
+  
+  updateBatchProgress: (loaded, total) => set({ batchLoadedCount: loaded, totalBatchCount: total }),
+  
   clearModel: () => set({ 
     entities: new Map(), 
     treeNodes: [], 
@@ -95,6 +115,10 @@ export const useModelStore = create<ModelStore>((set, get) => ({
     expandedIds: new Set(),
     isLoading: false,
     loadProgress: 0,
+    loadedFilePath: null,
+    remainingIds: [],
+    batchLoadedCount: 0,
+    totalBatchCount: 0,
   }),
 }));
 

@@ -1,24 +1,34 @@
 use crate::models::{EntitySnapshot, IfcType};
 use std::collections::HashMap;
 use std::fs::File;
-use std::io::{BufRead, BufReader};
+use std::io::{BufRead, BufReader, Write};
 use std::path::Path;
 use std::time::Instant;
 use tracing::{info, warn};
 
+fn debug_log(msg: &str) {
+    eprintln!("[PARSER] {}", msg);
+    let debug_log = std::env::temp_dir().join("ifc_parser_debug.log");
+    if let Ok(mut f) = File::options().append(true).open(&debug_log) {
+        let _ = writeln!(f, "[PARSER] {}", msg);
+    }
+}
+
 pub async fn parse_and_index(file_path: &str) -> Result<(usize, Option<String>), String> {
     let path = file_path.to_string();
-    let result = tokio::task::spawn_blocking(move || raw_parse(&path)).await;
+    let result = tokio::task::spawn_blocking(move || {
+        raw_parse(&path)
+    }).await;
     
     match result {
         Ok(Ok((entities, project_name))) => {
+            eprintln!("[PARSER] spawn_blocking returned {} entities", entities.len());
+            
             let app = crate::state::get_state();
             let mut guard = app.model.lock().map_err(|e| e.to_string())?;
             guard.entities = entities.clone();
             
             let hierarchy = crate::services::hierarchy_builder::build_hierarchy(&entities)?;
-            let app = crate::state::get_state();
-            let mut guard = app.model.lock().map_err(|e| e.to_string())?;
             guard.hierarchy_root = Some(hierarchy);
             
             create_index_file(file_path).map_err(|e| e.to_string())?;
@@ -31,6 +41,8 @@ pub async fn parse_and_index(file_path: &str) -> Result<(usize, Option<String>),
 }
 
 fn raw_parse(file_path: &str) -> Result<(HashMap<u64, EntitySnapshot>, Option<String>), String> {
+    debug_log(&format!("Opening file: {}", file_path));
+    
     let path = Path::new(file_path);
     let file = File::open(path).map_err(|e| format!("Failed to open {}: {}", file_path, e))?;
     let reader = BufReader::new(file);
@@ -43,22 +55,25 @@ fn raw_parse(file_path: &str) -> Result<(HashMap<u64, EntitySnapshot>, Option<St
         let line = line.map_err(|e| format!("Failed to read line: {}", e))?;
         let trimmed = line.trim();
         
+        if trimmed.is_empty() {
+            continue;
+        }
+        
         if let Some(snapshot) = parse_step_entity(trimmed) {
             let id = snapshot.id;
-            entities.insert(id, snapshot);
+            let is_project = matches!(snapshot.ifc_type.0, IfcType::IfcProject);
+            let project_name_candidate = snapshot.name.clone();
             
-            if project_name.is_none() {
-                if let Some(ent) = entities.get(&id) {
-                    if matches!(ent.ifc_type.0, IfcType::IfcProject) {
-                        project_name = ent.name.clone();
-                    }
-                }
+            if project_name.is_none() && is_project {
+                project_name = project_name_candidate;
             }
+            
+            entities.insert(id, snapshot);
         }
     }
     
     let elapsed = start.elapsed();
-    info!("Step entity parsing: {} entities in {:.1}s", entities.len(), elapsed.as_secs_f64());
+    debug_log(&format!("COMPLETE: {} entities parsed in {:.1}s", entities.len(), elapsed.as_secs_f64()));
     
     Ok((entities, project_name))
 }
@@ -69,11 +84,17 @@ fn parse_step_entity(line: &str) -> Option<EntitySnapshot> {
     }
     
     let (id_part, rest) = line.split_once('=').unwrap_or(("", ""));
-    let id: u64 = id_part[1..].trim().parse().ok()?;
+    let id_str = id_part.strip_prefix('#').unwrap_or(id_part);
+    
+    let id: u64 = match id_str.trim().parse() {
+        Ok(v) => v,
+        Err(_) => return None,
+    };
     
     let rest = rest.trim();
     let paren_pos = rest.find('(')?;
-    let type_str = rest[..paren_pos].trim();
+    
+    let type_str = rest[..paren_pos].trim().trim_end_matches(';');
     
     let ifc_type = parse_ifc_type(type_str);
     let wrapper = crate::models::entity::IfcTypeWrapper(ifc_type);

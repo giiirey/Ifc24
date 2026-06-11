@@ -1,17 +1,19 @@
 import { useState, useEffect } from 'react';
 
-interface PropertiesPanelProps {
-  selectedEntityId: number | null;
-  onSelectChange: (id: number | null) => void;
-}
-
-interface EntityData {
+export interface EntityData {
   id: number;
   global_id: string;
   ifc_type: string;
   name?: string;
   description?: string;
   attributes: [string, string][];
+}
+
+interface PropertiesPanelProps {
+  selectedEntityId: number | null;
+  onSelectChange: (id: number | null) => void;
+  entities?: Map<number, EntityData>;
+  meshes?: Map<number, any[]>;
 }
 
 const mockEntities: Record<number, EntityData> = {
@@ -130,17 +132,22 @@ const mockEntities: Record<number, EntityData> = {
   },
 };
 
-function PropertiesPanel({ selectedEntityId }: PropertiesPanelProps) {
+function PropertiesPanel({ selectedEntityId, entities, meshes }: PropertiesPanelProps) {
   const [entity, setEntity] = useState<EntityData | null>(null);
 
   useEffect(() => {
     if (selectedEntityId !== null) {
-      const data = mockEntities[selectedEntityId];
-      setEntity(data || null);
+      if (entities && entities.has(selectedEntityId)) {
+        const data = entities.get(selectedEntityId);
+        setEntity(data as EntityData || null);
+      } else {
+        const data = mockEntities[selectedEntityId];
+        setEntity(data || null);
+      }
     } else {
       setEntity(null);
     }
-  }, [selectedEntityId]);
+  }, [selectedEntityId, entities]);
 
   return (
     <div className="properties-panel">
@@ -166,13 +173,43 @@ function PropertiesPanel({ selectedEntityId }: PropertiesPanelProps) {
           </Section>
 
           <Section title="Geometry" collapsible defaultOpen={false}>
-            <PropertyRow label="Vertices" value="1,247" />
-            <PropertyRow label="Triangles" value="2,891" />
-            <PropertyRow label="Volume (m³)" value={(Math.random() * 10).toFixed(3)} />
-            <PropertyRow label="Surface Area (m²)" value={(Math.random() * 50).toFixed(2)} />
-            <PropertyRow label="Bounding Box" 
-              value={`[−${(Math.random()*10).toFixed(1)}, ${(Math.random()*10).toFixed(1)}, ${(Math.random()*10).toFixed(1)}]`}
-            />
+            {meshes && selectedEntityId !== null ? (() => {
+              const entityMeshes = meshes.get(selectedEntityId);
+              if (entityMeshes && entityMeshes.length > 0) {
+                const mesh = entityMeshes[0];
+                const vertexCount = mesh.vertices ? mesh.vertices.length / 3 : 0;
+                const indexCount = mesh.indices ? mesh.indices.length : 0;
+                const bbox = mesh.bbox;
+                return (
+                  <>
+                    <PropertyRow label="Vertices" value={vertexCount > 0 ? vertexCount.toLocaleString() : 'N/A'} />
+                    <PropertyRow label="Triangles" value={indexCount > 0 ? Math.floor(indexCount / 3).toLocaleString() : 'N/A'} />
+                    {bbox && (
+                      <PropertyRow 
+                        label="Bounding Box" 
+                        value={`[${bbox.min.map((n: number) => n.toFixed(2)).join(', ')}, ${bbox.max.map((n: number) => n.toFixed(2)).join(', ')}]`}
+                      />
+                    )}
+                  </>
+                );
+              }
+              return (
+                <>
+                  <PropertyRow label="Vertices" value="N/A" />
+                  <PropertyRow label="Triangles" value="N/A" />
+                </>
+              );
+            })() : (
+              <>
+                <PropertyRow label="Vertices" value="1,247" />
+                <PropertyRow label="Triangles" value="2,891" />
+                <PropertyRow label="Volume (m³)" value={(Math.random() * 10).toFixed(3)} />
+                <PropertyRow label="Surface Area (m²)" value={(Math.random() * 50).toFixed(2)} />
+                <PropertyRow label="Bounding Box" 
+                  value={`[${(-Math.random()*10).toFixed(1)}, ${Math.random()*10}.toFixed(1)}, ${(Math.random()*10).toFixed(1)}]`}
+                />
+              </>
+            )}
           </Section>
 
           <Section title="Relationships" collapsible defaultOpen={false}>
@@ -182,21 +219,78 @@ function PropertiesPanel({ selectedEntityId }: PropertiesPanelProps) {
           </Section>
 
           <Section title="Material" collapsible defaultOpen={false}>
-            <PropertyRow label="Name" value={`${entity.ifc_type}_material`} />
-            <div className="property-row" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <span className="property-label">Diffuse Color</span>
-              <div 
-                className="color-swatch" 
-                style={{ 
-                  width: '24px', 
-                  height: '16px', 
-                  borderRadius: '3px',
-                  background: getMaterialColor(entity.ifc_type),
-                }} 
-              />
-            </div>
-            <PropertyRow label="Opacity" value="1.0" />
-            <PropertyRow label="Roughness" value="0.8" />
+            {meshes && selectedEntityId !== null ? (() => {
+              const entityMeshes = meshes.get(selectedEntityId);
+              if (entityMeshes && entityMeshes.length > 0) {
+                const mesh = entityMeshes[0];
+                const colorDiffuse = mesh.material?.color_diffuse as [number, number, number] | undefined;
+                const colorStr = colorDiffuse 
+                  ? `rgb(${Math.round(colorDiffuse[0]*255)}, ${Math.round(colorDiffuse[1]*255)}, ${Math.round(colorDiffuse[2]*255)})`
+                  : 'N/A';
+                return (
+                  <>
+                    <PropertyRow label="Name" value={mesh.material?.name || `${entity.ifc_type}_material`} />
+                    {colorDiffuse && (
+                      <div className="property-row" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <span className="property-label">Diffuse Color</span>
+                        <div 
+                          className="color-swatch" 
+                          style={{ 
+                            width: '24px', 
+                            height: '16px', 
+                            borderRadius: '3px',
+                            background: colorStr,
+                          }} 
+                        />
+                      </div>
+                    )}
+                    {mesh.material?.opacity !== undefined && (
+                      <PropertyRow label="Opacity" value={mesh.material.opacity.toFixed(2)} />
+                    )}
+                    {mesh.material?.roughness !== undefined && (
+                      <PropertyRow label="Roughness" value={mesh.material.roughness.toFixed(2)} />
+                    )}
+                  </>
+                );
+              }
+              return (
+                <>
+                  <PropertyRow label="Name" value={`${entity.ifc_type}_material`} />
+                  <div className="property-row" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <span className="property-label">Diffuse Color</span>
+                    <div 
+                      className="color-swatch" 
+                      style={{ 
+                        width: '24px', 
+                        height: '16px', 
+                        borderRadius: '3px',
+                        background: getMaterialColor(entity.ifc_type),
+                      }} 
+                    />
+                  </div>
+                  <PropertyRow label="Opacity" value="1.0" />
+                  <PropertyRow label="Roughness" value="0.8" />
+                </>
+              );
+            })() : (
+              <>
+                <PropertyRow label="Name" value={`${entity.ifc_type}_material`} />
+                <div className="property-row" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span className="property-label">Diffuse Color</span>
+                  <div 
+                    className="color-swatch" 
+                    style={{ 
+                      width: '24px', 
+                      height: '16px', 
+                      borderRadius: '3px',
+                      background: getMaterialColor(entity.ifc_type),
+                    }} 
+                  />
+                </div>
+                <PropertyRow label="Opacity" value="1.0" />
+                <PropertyRow label="Roughness" value="0.8" />
+              </>
+            )}
           </Section>
         </div>
       ) : (

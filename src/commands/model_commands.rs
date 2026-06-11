@@ -64,6 +64,20 @@ pub fn search_entities(query: String) -> Result<Vec<u64>, String> {
 }
 
 #[tauri::command]
+pub fn get_all_entity_ids() -> Result<Vec<u64>, String> {
+    let app = get_state();
+    let guard = app.model.lock().map_err(|e| e.to_string())?;
+    Ok(guard.entities.keys().cloned().collect())
+}
+
+#[tauri::command]
+pub fn get_all_entities() -> Result<Vec<EntitySnapshot>, String> {
+    let app = get_state();
+    let guard = app.model.lock().map_err(|e| e.to_string())?;
+    Ok(guard.entities.values().cloned().collect())
+}
+
+#[tauri::command]
 pub fn get_entity_types() -> Result<Vec<(String, usize)>, String> {
     let app = get_state();
     let guard = app.model.lock().map_err(|e| e.to_string())?;

@@ -4,12 +4,14 @@ use tracing::info;
 
 #[tauri::command]
 pub async fn open_ifc_file(file_path: String) -> Result<ModelInfo, String> {
-    // Check if already open - sync path
+    eprintln!("[FILE_CMD] open_ifc_file called with: {}", file_path);
+    
+    // Check if already open and parsed - sync path
     let app = get_state();
     {
         let guard = app.model.lock().map_err(|e| e.to_string())?;
         if let Some(existing_path) = &guard.model_path {
-            if existing_path == &file_path {
+            if existing_path == &file_path && !guard.entities.is_empty() {
                 return Ok(ModelInfo {
                     path: file_path,
                     entity_count: guard.entities.len(),

@@ -1,6 +1,6 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useMemo } from 'react';
 
-interface TreeNodeData {
+export interface TreeNodeData {
   id: number;
   name: string;
   ifc_type: string;
@@ -8,107 +8,64 @@ interface TreeNodeData {
 }
 
 interface IfcTreeProps {
+  treeData: TreeNodeData[];
   selectedEntityId: number | null;
   onSelect: (id: number | null) => void;
   searchQuery: string;
   ifcTypeFilter: string;
+  expandedIds: Set<number>;
+  toggleExpand: (id: number) => void;
 }
 
-const mockTreeData: TreeNodeData = {
-  id: 1,
-  name: 'IfcProject',
-  ifc_type: 'IfcProject',
-  children: [
-    {
-      id: 2,
-      name: 'Default Site',
-      ifc_type: 'IfcSite',
-      children: [
-        {
-          id: 3,
-          name: 'Default Building',
-          ifc_type: 'IfcBuilding',
-          children: [
-            {
-              id: 4,
-              name: 'Ground Floor',
-              ifc_type: 'IfcBuildingStorey',
-              children: [
-                { id: 5, name: 'Wall - Outer', ifc_type: 'IfcWall', children: [] },
-                { id: 6, name: 'Slab - Ground', ifc_type: 'IfcSlab', children: [] },
-                { id: 7, name: 'Column - C1', ifc_type: 'IfcColumn', children: [] },
-                { id: 8, name: 'Door - D001', ifc_type: 'IfcDoor', children: [] },
-                { id: 9, name: 'Window - W001', ifc_type: 'IfcWindow', children: [] },
-                { id: 10, name: 'Beam - B001', ifc_type: 'IfcBeam', children: [] },
-              ],
-            },
-            {
-              id: 11,
-              name: 'First Floor',
-              ifc_type: 'IfcBuildingStorey',
-              children: [
-                { id: 12, name: 'Wall - Outer', ifc_type: 'IfcWall', children: [] },
-                { id: 13, name: 'Slab - Upper', ifc_type: 'IfcSlab', children: [] },
-                { id: 14, name: 'Column - C2', ifc_type: 'IfcColumn', children: [] },
-              ],
-            },
-          ],
-        },
-      ],
-    },
-  ],
-};
-
-function IfcTree({ selectedEntityId, onSelect, searchQuery, ifcTypeFilter }: IfcTreeProps) {
-  const [treeData] = useState<TreeNodeData>(mockTreeData);
-  const [expandedIds, setExpandedIds] = useState<Set<number>>(new Set([1, 2, 3]));
-
-  useEffect(() => {
-    // Expand all when searching/filtering
-    if (searchQuery || ifcTypeFilter) {
-      setExpandedIds(new Set([1, 2, 3, 4, 11]));
-    }
-  }, [searchQuery, ifcTypeFilter]);
-
-  const toggleExpand = (id: number) => {
-    const next = new Set(expandedIds);
-    if (next.has(id)) {
-      next.delete(id);
-    } else {
-      next.add(id);
-    }
-    setExpandedIds(next);
-  };
-
+function IfcTree({ treeData, selectedEntityId, onSelect, searchQuery, ifcTypeFilter, expandedIds, toggleExpand }: IfcTreeProps) {
   const filteredTree = useMemo(() => {
-    return filterNode(treeData, searchQuery, ifcTypeFilter, expandedIds);
+    if (!treeData || treeData.length === 0) return [];
+    
+    return treeData
+      .map(node => filterNodeRecursively(node, searchQuery, ifcTypeFilter, expandedIds))
+      .filter(Boolean) as TreeNodeData[];
   }, [treeData, searchQuery, ifcTypeFilter, expandedIds]);
+
+  if (!treeData || treeData.length === 0) {
+    return (
+      <div className="tree-container">
+        <div style={{ padding: '12px', color: 'var(--color-text-muted)', textAlign: 'center' }}>
+          No hierarchy data available
+        </div>
+      </div>
+    );
+  }
+
+  if (filteredTree.length === 0 && (searchQuery || ifcTypeFilter)) {
+    return (
+      <div className="tree-container">
+        <div style={{ padding: '12px', color: 'var(--color-text-muted)', textAlign: 'center' }}>
+          {searchQuery ? `No results for "${searchQuery}"` : 'No matching entities'}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="tree-container">
-      <TreeNode node={filteredTree} depth={0} selectedEntityId={selectedEntityId} onSelect={onSelect} toggleExpand={toggleExpand} expandedIds={expandedIds} />
-      {filteredTree.children.length === 0 && !searchQuery && ifcTypeFilter && (
-        <div style={{ padding: '12px', color: 'var(--color-text-muted)', textAlign: 'center' }}>
-          No matching entities
-        </div>
-      )}
-      {filteredTree.children.length === 0 && searchQuery && (
-        <div style={{ padding: '12px', color: 'var(--color-text-muted)', textAlign: 'center' }}>
-          No results for "{searchQuery}"
-        </div>
-      )}
+      {filteredTree.map(node => (
+        <TreeNode
+          key={node.id}
+          node={node}
+          depth={0}
+          selectedEntityId={selectedEntityId}
+          onSelect={onSelect}
+          toggleExpand={toggleExpand}
+          expandedIds={expandedIds}
+        />
+      ))}
     </div>
   );
 }
 
-function filterNode(
-  node: TreeNodeData,
-  search: string,
-  typeFilter: string,
-  expanded: Set<number>
-): TreeNodeData {
+function filterNodeRecursively(node: TreeNodeData, search: string, typeFilter: string, expanded: Set<number>): TreeNodeData | null {
   let matches = true;
-  
+
   if (search) {
     const q = search.toLowerCase();
     const nameMatch = node.name.toLowerCase().includes(q);
@@ -119,22 +76,24 @@ function filterNode(
   }
 
   if (typeFilter && node.ifc_type !== typeFilter) {
-    // Allow if any descendant matches
     const childMatches = node.children.some(c => c.ifc_type === typeFilter);
     if (!childMatches) {
       matches = false;
     }
   }
 
-  const filteredChildren = node.children.map(child => filterNode(child, search, typeFilter, expanded));
-  const childrenWithDepth = (node.ifc_type !== 'IfcProject' || search || typeFilter) 
-    ? filteredChildren 
-    : filteredChildren.filter(c => c.name !== 'Default Building');
+  const filteredChildren = node.children
+    .map(child => filterNodeRecursively(child, search, typeFilter, expanded))
+    .filter(Boolean) as TreeNodeData[];
 
-  return {
-    ...node,
-    children: childrenWithDepth,
-  };
+  if (matches || filteredChildren.length > 0) {
+    return {
+      ...node,
+      children: search || typeFilter ? filteredChildren : node.children,
+    };
+  }
+
+  return null;
 }
 
 function TreeNode({ 
@@ -162,7 +121,6 @@ function TreeNode({
         className={`tree-node ${isSelected ? 'selected' : ''}`}
         style={{ paddingLeft: `${depth * 16 + 8}px` }}
         onClick={() => onSelect(node.id)}
-        onDoubleClick={() => hasChildren && toggleExpand(node.id)}
       >
         <span 
           className="expand-toggle"
@@ -170,7 +128,7 @@ function TreeNode({
             e.stopPropagation();
             if (hasChildren) toggleExpand(node.id);
           }}
-          style={{ minWidth: '16px', display: 'inline-block', color: 'var(--color-text-muted)', fontSize: '10px' }}
+          style={{ minWidth: '16px', display: 'inline-block', color: 'var(--color-text-muted)', fontSize: '10px', cursor: hasChildren ? 'pointer' : 'default' }}
         >
           {hasChildren ? (isExpanded ? '▼' : '▶') : ' '}
         </span>
@@ -181,10 +139,10 @@ function TreeNode({
         <span className="tree-name" title={node.name}>{truncateName(node.name, 28)}</span>
       </div>
       {isExpanded && hasChildren && node.children.map(child => (
-        <TreeNode 
-          key={child.id} 
-          node={child} 
-          depth={depth + 1} 
+        <TreeNode
+          key={child.id}
+          node={child}
+          depth={depth + 1}
           selectedEntityId={selectedEntityId}
           onSelect={onSelect}
           toggleExpand={toggleExpand}
@@ -197,19 +155,19 @@ function TreeNode({
 
 function getTypeIcon(ifcType: string): string {
   const icons: Record<string, string> = {
-    'IfcProject': '🏢',
-    'IfcSite': '🌍',
-    'IfcBuilding': '🏗️',
-    'IfcBuildingStorey': '📐',
-    'IfcWall': '🧱',
-    'IfcSlab': '▬',
+    'IfcProject': '\uD83C\uDFE2',
+    'IfcSite': '\uD83C\uDF0D',
+    'IfcBuilding': '\uD83C\uDFDA',
+    'IfcBuildingStorey': '\uD83D\uDCC0',
+    'IfcWall': '\uD83E\uDDF1',
+    'IfcSlab': '\u25AC',
     'IfcColumn': '|',
     'IfcBeam': '--',
-    'IfcDoor': '🚪',
-    'IfcWindow': '🪟',
-    'IfcSpace': '📦',
+    'IfcDoor': '\uD83D\uDEAA',
+    'IfcWindow': '\uD83E\ude9F',
+    'IfcSpace': '\uD83D\uDCE6',
   };
-  return icons[ifcType] || '•';
+  return icons[ifcType] || '\u2022';
 }
 
 function truncateName(name: string, maxLength: number): string {
