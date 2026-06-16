@@ -132,6 +132,13 @@ const mockEntities: Record<number, EntityData> = {
   },
 };
 
+function getIfcTypeStr(ifcType: string | { name?: string } | undefined): string {
+  if (!ifcType) return 'Unknown';
+  if (typeof ifcType === 'string') return ifcType;
+  if (typeof ifcType === 'object' && ifcType !== null) return (ifcType as any).name || 'Unknown';
+  return String(ifcType);
+}
+
 function PropertiesPanel({ selectedEntityId, entities, meshes }: PropertiesPanelProps) {
   const [entity, setEntity] = useState<EntityData | null>(null);
 
@@ -160,16 +167,27 @@ function PropertiesPanel({ selectedEntityId, entities, meshes }: PropertiesPanel
           <Section title="Identification">
             <PropertyRow label="Global ID" value={entity.global_id} />
             <PropertyRow label="Name" value={entity.name || entity.global_id} />
-            <PropertyRow label="Type" value={entity.ifc_type} copyable />
+            <PropertyRow label="Type" value={String(entity.ifc_type)} copyable />
             {entity.description && (
               <PropertyRow label="Description" value={entity.description} multiline />
             )}
           </Section>
 
           <Section title="Attributes">
-            {entity.attributes.map(([key, value], i) => (
-              <PropertyRow key={`${key}-${i}`} label={key} value={value} copyable={true} />
-            ))}
+            {entity.attributes.map((attr, i) => {
+              let key: string, value: string;
+              if (Array.isArray(attr)) {
+                key = String(attr[0] ?? '');
+                value = String(attr[1] ?? '');
+              } else if (attr && typeof attr === 'object') {
+                key = String((attr as any).name ?? (attr as any).key ?? i);
+                value = String((attr as any).value ?? '');
+              } else {
+                key = String(i);
+                value = String(attr);
+              }
+              return <PropertyRow key={`${key}-${i}`} label={key} value={value} copyable={true} />;
+            })}
           </Section>
 
           <Section title="Geometry" collapsible defaultOpen={false}>
@@ -229,7 +247,7 @@ function PropertiesPanel({ selectedEntityId, entities, meshes }: PropertiesPanel
                   : 'N/A';
                 return (
                   <>
-                    <PropertyRow label="Name" value={mesh.material?.name || `${entity.ifc_type}_material`} />
+                    <PropertyRow label="Name" value={mesh.material?.name || `${getIfcTypeStr(entity.ifc_type)}_material`} />
                     {colorDiffuse && (
                       <div className="property-row" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                         <span className="property-label">Diffuse Color</span>
@@ -255,7 +273,7 @@ function PropertiesPanel({ selectedEntityId, entities, meshes }: PropertiesPanel
               }
               return (
                 <>
-                  <PropertyRow label="Name" value={`${entity.ifc_type}_material`} />
+                  <PropertyRow label="Name" value={`${getIfcTypeStr(entity.ifc_type)}_material`} />
                   <div className="property-row" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                     <span className="property-label">Diffuse Color</span>
                     <div 
@@ -264,7 +282,7 @@ function PropertiesPanel({ selectedEntityId, entities, meshes }: PropertiesPanel
                         width: '24px', 
                         height: '16px', 
                         borderRadius: '3px',
-                        background: getMaterialColor(entity.ifc_type),
+                        background: getMaterialColor(getIfcTypeStr(entity.ifc_type)),
                       }} 
                     />
                   </div>
@@ -274,7 +292,7 @@ function PropertiesPanel({ selectedEntityId, entities, meshes }: PropertiesPanel
               );
             })() : (
               <>
-                <PropertyRow label="Name" value={`${entity.ifc_type}_material`} />
+                <PropertyRow label="Name" value={`${getIfcTypeStr(entity.ifc_type)}_material`} />
                 <div className="property-row" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                   <span className="property-label">Diffuse Color</span>
                   <div 
@@ -283,7 +301,7 @@ function PropertiesPanel({ selectedEntityId, entities, meshes }: PropertiesPanel
                       width: '24px', 
                       height: '16px', 
                       borderRadius: '3px',
-                      background: getMaterialColor(entity.ifc_type),
+                      background: getMaterialColor(getIfcTypeStr(entity.ifc_type)),
                     }} 
                   />
                 </div>

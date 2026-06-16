@@ -63,20 +63,28 @@ function IfcTree({ treeData, selectedEntityId, onSelect, searchQuery, ifcTypeFil
   );
 }
 
+function getIfcTypeStr(ifcType: string | { name?: string } | undefined): string {
+  if (!ifcType) return 'Unknown';
+  if (typeof ifcType === 'string') return ifcType;
+  if (typeof ifcType === 'object' && ifcType !== null) return (ifcType as any).name || 'Unknown';
+  return String(ifcType);
+}
+
 function filterNodeRecursively(node: TreeNodeData, search: string, typeFilter: string, expanded: Set<number>): TreeNodeData | null {
   let matches = true;
+  const typeStr = getIfcTypeStr(node.ifc_type);
 
   if (search) {
     const q = search.toLowerCase();
     const nameMatch = node.name.toLowerCase().includes(q);
-    const typeMatch = node.ifc_type.toLowerCase().includes(q);
+    const typeMatch = typeStr.toLowerCase().includes(q);
     if (!nameMatch && !typeMatch) {
       matches = false;
     }
   }
 
-  if (typeFilter && node.ifc_type !== typeFilter) {
-    const childMatches = node.children.some(c => c.ifc_type === typeFilter);
+  if (typeFilter && typeStr !== typeFilter) {
+    const childMatches = node.children.some(c => getIfcTypeStr(c.ifc_type) === typeFilter);
     if (!childMatches) {
       matches = false;
     }
@@ -132,9 +140,9 @@ function TreeNode({
         >
           {hasChildren ? (isExpanded ? '▼' : '▶') : ' '}
         </span>
-        <span className="tree-icon">{getTypeIcon(node.ifc_type)}</span>
-        <span className={`type-badge type-${node.ifc_type.replace('Ifc', '')}`}>
-          {node.ifc_type}
+        <span className="tree-icon">{getTypeIcon(getIfcTypeStr(node.ifc_type))}</span>
+        <span className={`type-badge type-${getIfcTypeStr(node.ifc_type).replace('Ifc', '')}`}>
+          {getIfcTypeStr(node.ifc_type)}
         </span>
         <span className="tree-name" title={node.name}>{truncateName(node.name, 28)}</span>
       </div>
