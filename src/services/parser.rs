@@ -112,6 +112,10 @@ fn parse_ifc_type(s: &str) -> IfcType {
         "IFCBUILDINGSTOREY" => IfcType::IfcBuildingStorey,
         "IFCWALL" => IfcType::IfcWall,
         "IFCSLAB" => IfcType::IfcSlab,
+        "IFCASSEMBLY" => IfcType::IfcAssembly,
+        t if t.starts_with("IFCASSEMBLY") => IfcType::IfcAssembly,
+        "IFCELEMENTASSEMBLY" => IfcType::IfcElementAssembly,
+        t if t.starts_with("IFCELEMENTASSEMBLY") => IfcType::IfcElementAssembly,
         "IFCCOLUMN" => IfcType::IfcColumn,
         "IFCBEAM" => IfcType::IfcBeam,
         "IFCDOOR" => IfcType::IfcDoor,
@@ -123,9 +127,22 @@ fn parse_ifc_type(s: &str) -> IfcType {
         "IFCSPACE" => IfcType::IfcSpace,
         "IFCOPENINGELEMENT" => IfcType::IfcOpeningElement,
         "IFCFURNITURE" => IfcType::IfcFurniture,
+        "IFCPLATE" => IfcType::IfcPlate,
+        "IFCMECHANICALFASTENER" => IfcType::IfcMechanicalFastener,
         "IFCFLOWSEGMENT" => IfcType::IfcFlowSegment,
         "IFCFLOWTERMINAL" => IfcType::IfcFlowTerminal,
         "IFCFLOWCONTROLLER" => IfcType::IfcFlowController,
+        "IFCRELAGGREGATES" => IfcType::IfcRelAggregates,
+        "IFCRELDECOMPOSES" => IfcType::IfcRelDecomposes,
+        "IFCRELNESTS" => IfcType::IfcRelNests,
+        "IFCRELCONTAINEDINSPATIALSTRUCTURE" => IfcType::IfcRelContainedInSpatialStructure,
+        "IFCRELDEFINESBYPROPERTIES" => IfcType::IfcRelDefinesByProperties,
+        "IFCRELASSIGNSTOGROUP" => IfcType::IfcRelAssignsToGroup,
+        "IFCRELFILLSELEMENT" => IfcType::IfcRelFillsElement,
+        "IFCRELVOIDSELEMENT" => IfcType::IfcRelVoidsElement,
+        "IFCRELCONNECTSELEMENTS" => IfcType::IfcRelConnectsElements,
+        "IFCRELCONNECTSPATHELEMENTS" => IfcType::IfcRelConnectsPathElements,
+        "IFCRELREFERENCEDINSPATIALSTRUCTURE" => IfcType::IfcRelReferencedInSpatialStructure,
         _ => IfcType::Unknown,
     }
 }
@@ -133,12 +150,18 @@ fn parse_ifc_type(s: &str) -> IfcType {
 fn parse_attributes(paren_content: &str) -> Vec<(String, String)> {
     let mut attrs = Vec::new();
     let content = paren_content.strip_prefix('(').unwrap_or(paren_content);
+    let content = content.strip_suffix(';').unwrap_or(content);
     let content = content.strip_suffix(')').unwrap_or(content);
     
     let parts: Vec<&str> = split_attributes(content);
     for part in parts {
         let part = part.trim();
-        if part.is_empty() || part == "$" || part == ".UNDEFINED." {
+        if part.is_empty() {
+            attrs.push((format!("attr_{}", attrs.len()), String::new()));
+            continue;
+        }
+        if part == "$" || part == ".UNDEFINED." {
+            attrs.push((format!("attr_{}", attrs.len()), part.to_string()));
             continue;
         }
         if part.contains('=') {

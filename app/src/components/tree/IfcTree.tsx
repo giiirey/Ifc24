@@ -169,6 +169,8 @@ function getTypeIcon(ifcType: string): string {
     'IfcBuildingStorey': '\uD83D\uDCC0',
     'IfcWall': '\uD83E\uDDF1',
     'IfcSlab': '\u25AC',
+    'IfcAssembly': '\uD83D\uDCE6',
+    'IfcElementAssembly': '\uD83D\uDCE6',
     'IfcColumn': '|',
     'IfcBeam': '--',
     'IfcDoor': '\uD83D\uDEAA',

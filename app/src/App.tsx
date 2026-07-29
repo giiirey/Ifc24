@@ -160,6 +160,8 @@ function App() {
             <option value="IfcBeam">IfcBeam</option>
             <option value="IfcDoor">IfcDoor</option>
             <option value="IfcWindow">IfcWindow</option>
+            <option value="IfcAssembly">IfcAssembly</option>
+            <option value="IfcElementAssembly">IfcElementAssembly</option>
             <option value="IfcSpace">IfcSpace</option>
           </select>
         </div>
