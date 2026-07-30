@@ -106,6 +106,9 @@ function Viewer3D({ selectedEntityId }: Viewer3DProps) {
     <div className="viewer-container">
       <div className="viewer-toolbar">
         <span className="toolbar-label">3D Viewport</span>
+      </div>
+
+      <div className="viewer-status">
         {hasGeometry ? (
           <span style={{ fontSize: '12px', color: '#6b8e6b' }}>
             {meshes.size} entities rendered
