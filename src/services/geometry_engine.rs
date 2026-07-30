@@ -1,23 +1,52 @@
 use crate::models::{BoundingBox, MeshData};
+use crate::services::geometry_resolver::GeometryResolver;
+use nalgebra::Matrix4;
 
 pub fn extract_for_entities(entity_ids: &[u64]) -> Result<Vec<MeshData>, String> {
     let app = crate::state::get_state();
     let guard = app.model.lock().map_err(|e| e.to_string())?;
-    
+
+    let resolver = GeometryResolver::new(&guard.entities);
     let mut meshes = Vec::new();
+
     for id in entity_ids {
         if let Some(entity) = guard.entities.get(id) {
-            let mesh = generate_geometry_for_type(entity);
+            let mesh = generate_geometry_for_type(entity, &resolver);
             meshes.push(mesh);
         }
     }
     Ok(meshes)
 }
 
-fn generate_geometry_for_type(entity: &crate::models::EntitySnapshot) -> MeshData {
-    let (size, color) = get_type_dimensions_and_color(&entity.ifc_type);
-    let bbox = create_box_bbox(size);
-    
+fn generate_geometry_for_type(entity: &crate::models::EntitySnapshot, resolver: &GeometryResolver) -> MeshData {
+    let (fallback_size, color) = get_type_dimensions_and_color(&entity.ifc_type);
+
+    let size = resolver.extract_dimensions(entity)
+        .unwrap_or(fallback_size);
+
+    let placement = resolver.resolve_placement(entity);
+
+    let (center, transformed_size) = if let Some(matrix) = placement {
+        let local_center = nalgebra::Vector3::new(0.0, 0.0, size[2] / 2.0);
+        let world_center = matrix.transform_point(&nalgebra::Point3::from_homogeneous(
+            nalgebra::Vector4::new(local_center.x, local_center.y, local_center.z, 1.0)
+        ).unwrap());
+
+        let transformed = apply_rotation_to_size(matrix, size);
+        (
+            [world_center.x, world_center.y, world_center.z],
+            transformed
+        )
+    } else {
+        ([0.0, 0.0, size[2] / 2.0], size)
+    };
+
+    let half = [transformed_size[0] / 2.0, transformed_size[1] / 2.0, transformed_size[2] / 2.0];
+    let bbox = BoundingBox::new(
+        [center[0] - half[0], center[1] - half[1], center[2] - half[2]],
+        [center[0] + half[0], center[1] + half[1], center[2] + half[2]],
+    );
+
     MeshData {
         entity_id: entity.id,
         vertices: create_box_vertices(&bbox),
@@ -36,6 +65,14 @@ fn generate_geometry_for_type(entity: &crate::models::EntitySnapshot) -> MeshDat
     }
 }
 
+fn apply_rotation_to_size(matrix: Matrix4<f64>, size: [f64; 3]) -> [f64; 3] {
+    let sx = matrix.column(0).xyz().norm();
+    let sy = matrix.column(1).xyz().norm();
+    let sz = matrix.column(2).xyz().norm();
+
+    [size[0] * sx, size[1] * sy, size[2] * sz]
+}
+
 fn get_type_dimensions_and_color(ifc_type: &crate::models::IfcType) -> ([f64; 3], [f32; 3]) {
     match ifc_type {
         crate::models::IfcType::IfcWall => ([5.0, 3.0, 0.2], [0.7, 0.7, 0.7]),
@@ -49,21 +86,40 @@ fn get_type_dimensions_and_color(ifc_type: &crate::models::IfcType) -> ([f64; 3]
     }
 }
 
-fn create_box_bbox(size: [f64; 3]) -> BoundingBox {
-    let half = [size[0] / 2.0, size[1] / 2.0, size[2] / 2.0];
-    let min = [-half[0], -half[1], -half[2]];
-    let max = [half[0], half[1], half[2]];
-    BoundingBox::new(min, max)
-}
+fn create_box_vertices(bbox: &BoundingBox) -> Vec<f32> {
+    let min = bbox.min;
+    let max = bbox.max;
 
-fn create_box_vertices(_bbox: &BoundingBox) -> Vec<f32> {
     vec![
-        -0.5,  0.5, -0.5,   0.5,  0.5, -0.5,   0.5, -0.5, -0.5,  -0.5, -0.5, -0.5,
-        -0.5,  0.5,  0.5,   -0.5, -0.5,  0.5,   0.5, -0.5,  0.5,   0.5,  0.5,  0.5,
-        -0.5,  0.5, -0.5,   -0.5, -0.5, -0.5,   -0.5, -0.5,  0.5,  -0.5,  0.5,  0.5,
-         0.5,  0.5, -0.5,    0.5, -0.5, -0.5,    0.5, -0.5,  0.5,   0.5,  0.5,  0.5,
-        -0.5,  0.5, -0.5,   -0.5,  0.5,  0.5,    0.5,  0.5,  0.5,   0.5,  0.5, -0.5,
-        -0.5, -0.5, -0.5,    0.5, -0.5, -0.5,    0.5, -0.5,  0.5,  -0.5, -0.5,  0.5,
+        min[0] as f32, max[1] as f32, min[2] as f32,
+        max[0] as f32, max[1] as f32, min[2] as f32,
+        max[0] as f32, min[1] as f32, min[2] as f32,
+        min[0] as f32, min[1] as f32, min[2] as f32,
+
+        min[0] as f32, max[1] as f32, max[2] as f32,
+        min[0] as f32, min[1] as f32, max[2] as f32,
+        max[0] as f32, min[1] as f32, max[2] as f32,
+        max[0] as f32, max[1] as f32, max[2] as f32,
+
+        min[0] as f32, max[1] as f32, min[2] as f32,
+        min[0] as f32, min[1] as f32, min[2] as f32,
+        min[0] as f32, min[1] as f32, max[2] as f32,
+        min[0] as f32, max[1] as f32, max[2] as f32,
+
+        max[0] as f32, max[1] as f32, min[2] as f32,
+        max[0] as f32, min[1] as f32, min[2] as f32,
+        max[0] as f32, min[1] as f32, max[2] as f32,
+        max[0] as f32, max[1] as f32, max[2] as f32,
+
+        min[0] as f32, max[1] as f32, min[2] as f32,
+        min[0] as f32, max[1] as f32, max[2] as f32,
+        max[0] as f32, max[1] as f32, max[2] as f32,
+        max[0] as f32, max[1] as f32, min[2] as f32,
+
+        min[0] as f32, min[1] as f32, min[2] as f32,
+        max[0] as f32, min[1] as f32, min[2] as f32,
+        max[0] as f32, min[1] as f32, max[2] as f32,
+        min[0] as f32, min[1] as f32, max[2] as f32,
     ]
 }
 

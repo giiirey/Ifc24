@@ -68,46 +68,43 @@ function App() {
       entities.forEach(e => entityMap.set(e.id, e));
       store.setEntities(entityMap as Map<number, any>);
 
-      console.log('[App] Step 4: loading geometry in batches...');
+      console.log('[App] Step 4: loading all geometry at once...');
       
-      const allEntityIds = await ipc.getAllEntityIds();
-      console.log('[App] Step 4:', allEntityIds.length, 'entity IDs total');
-      
-      if (allEntityIds.length > 0) {
-        store.setRemainingIds(allEntityIds);
-        
-        // Load geometry in batches - show progress bar
-        const BATCH_SIZE = 200;
-        const totalBatches = Math.ceil(allEntityIds.length / BATCH_SIZE);
-        const loadingBar = document.createElement('div');
-        loadingBar.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:#1e2746;padding:24px 48px;border-radius:8px;z-index:9999;color:#e0e0e0;font-size:14px;text-align:center;';
-        loadingBar.textContent = `Loading geometry 0/${allEntityIds.length}...`;
-        document.body.appendChild(loadingBar);
+      const loadingBar = document.createElement('div');
+      loadingBar.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:#1e2746;padding:24px 48px;border-radius:8px;z-index:9999;color:#e0e0e0;font-size:14px;text-align:center;';
+      loadingBar.textContent = 'Loading geometry...';
+      document.body.appendChild(loadingBar);
 
-        let loadedCount = 0;
-        for (let i = 0; i < allEntityIds.length; i += BATCH_SIZE) {
-          const batchEnd = Math.min(i + BATCH_SIZE, allEntityIds.length);
-          const batch = allEntityIds.slice(i, batchEnd);
+      try {
+        const meshes: MeshData[] = await ipc.loadGeometryBatch([]);
+        console.log(`[App] Loaded ${meshes.length} meshes from IfcOpenShell`);
+        
+        if (meshes.length > 0) {
+          console.log('[App] Sample mesh:', {
+            entity_id: meshes[0].entity_id,
+            vertices: meshes[0].vertices?.length || 0,
+            indices: meshes[0].indices?.length || 0,
+            bbox: meshes[0].bbox
+          });
           
-          try {
-            const meshes: MeshData[] = await ipc.loadGeometryBatch(batch.map(Number));
-            console.log(`[App] Batch ${Math.floor(i / BATCH_SIZE) + 1}/${totalBatches}: ${meshes.length} meshes`);
-            if (meshes.length > 0) {
-              console.log('[App] Sample mesh:', JSON.stringify(meshes[0], null, 2));
+          const meshMap = new Map<number, MeshData[]>();
+          for (const mesh of meshes) {
+            const id = Number(mesh.entity_id);
+            if (!meshMap.has(id)) {
+              meshMap.set(id, []);
             }
-            meshes.forEach(mesh => {
-              store.setMeshes(Number(mesh.entity_id), [mesh as any]);
-            });
-          } catch (err) {
-            console.warn(`[App] Failed to load geometry batch:`, err);
+            meshMap.get(id)!.push(mesh as any);
           }
           
-          loadedCount += (batchEnd - i);
-          loadingBar.textContent = `Loading geometry ${loadedCount}/${allEntityIds.length}...`;
+          console.log('[App] meshMap.size =', meshMap.size);
+          useModelStore.setState({ meshes: meshMap });
+          console.log('[App] After setState, store.meshes.size =', useModelStore.getState().meshes.size);
         }
-
-        document.body.removeChild(loadingBar);
+      } catch (err) {
+        console.warn(`[App] Failed to load geometry:`, err);
       }
+
+      document.body.removeChild(loadingBar);
 
       console.log('[App] Step 5: finalizing');
       store.setLoadedFilePath(modelInfo.path);
@@ -141,7 +138,7 @@ function App() {
         <div className="sidebar-controls">
           <input
             type="text"
-            placeholder="Search entities..."
+            placeholder="Filter entities..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="search-input"
@@ -195,7 +192,7 @@ function App() {
         </div>
       </div>
 
-      <Viewer3D selectedEntityId={selectedEntityId} onOpenFile={handleLoadFile} />
+      <Viewer3D selectedEntityId={selectedEntityId} />
 
       <PropertiesPanel
         selectedEntityId={selectedEntityId}

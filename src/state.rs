@@ -7,6 +7,7 @@ pub struct ModelState {
     pub hierarchy_root: Option<TreeNode>,
     pub model_path: Option<String>,
     pub mesh_cache: HashMap<u64, Vec<crate::models::MeshData>>,
+    pub ifc_model: Option<crate::services::ifc_openshell::IfcModelWrapper>,
 }
 
 impl ModelState {
@@ -16,6 +17,7 @@ impl ModelState {
             hierarchy_root: None,
             model_path: None,
             mesh_cache: HashMap::new(),
+            ifc_model: None,
         }
     }
 
@@ -24,6 +26,7 @@ impl ModelState {
         self.hierarchy_root = None;
         self.model_path = None;
         self.mesh_cache.clear();
+        self.ifc_model = None;
     }
 }
 

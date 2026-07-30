@@ -14,7 +14,7 @@
     "windows": [
       {
         "label": "main",
-        "title": "IFC Tauri — Model Visualizer",
+        "title": "IFC Model Visualizer",
         "width": 1600,
         "height": 1000,
         "resizable": true,

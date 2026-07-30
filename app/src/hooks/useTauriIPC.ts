@@ -63,7 +63,7 @@ function syncIsTauri(): boolean {
 
   // Try dynamic import as last resort
   import('@tauri-apps/api/core')
-    .then(mod => {
+    .then(() => {
       console.log('[IPC] @tauri-apps/api/core loaded successfully');
       _cachedTauri = true;
     })

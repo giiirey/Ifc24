@@ -12,6 +12,7 @@ export interface MeshItem {
   entity_id: number;
   vertices: number[];
   indices: number[];
+  normals?: number[];
   material: { name: string; color_diffuse: [number, number, number]; opacity?: number; roughness?: number; metalness?: number };
   bbox: { min: [number, number, number]; max: [number, number, number] } | null;
 }
@@ -38,7 +39,7 @@ interface ModelStore {
   setEntities: (entities: Map<number, EntityInfo>) => void;
   selectEntity: (id: number | null) => void;
   toggleExpand: (id: number) => void;
-  setMeshes: (entityId: number, meshes: MeshItem[]) => void;
+  setMeshes: (entityId: number | Map<number, MeshItem[]> | MeshItem[], meshes?: MeshItem[]) => void;
   setLoading: (loading: boolean, progress?: number) => void;
   setHierarchy: (nodes: TreeNodeData[]) => void;
   setLoadedFilePath: (path: string | null) => void;
@@ -91,10 +92,24 @@ export const useModelStore = create<ModelStore>((set, get) => ({
     set({ expandedIds: next });
   },
 
-  setMeshes: (entityId, meshes) => {
-    const current = new Map(get().meshes);
-    current.set(entityId, meshes);
-    set({ meshes: current });
+  setMeshes: (entityId: number | Map<number, MeshItem[]> | MeshItem[], meshes?: MeshItem[]) => {
+    if (Array.isArray(entityId)) {
+      const meshMap = new Map<number, MeshItem[]>();
+      for (const mesh of entityId) {
+        const id = Number(mesh.entity_id);
+        if (!meshMap.has(id)) {
+          meshMap.set(id, []);
+        }
+        meshMap.get(id)!.push(mesh);
+      }
+      set({ meshes: meshMap });
+    } else if (entityId instanceof Map) {
+      set({ meshes: entityId });
+    } else {
+      const current = new Map(get().meshes);
+      current.set(entityId, meshes!);
+      set({ meshes: current });
+    }
   },
 
   setLoading: (loading, progress = 0) => set({ isLoading: loading, loadProgress: progress }),

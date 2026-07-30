@@ -2,20 +2,30 @@ import { Canvas } from '@react-three/fiber';
 import { OrbitControls } from '@react-three/drei';
 import { Suspense, useMemo, useState, useEffect } from 'react';
 import { useModelStore } from '../../store/modelStore';
+import * as THREE from 'three';
 
 interface Viewer3DProps {
   selectedEntityId: number | null;
-  onOpenFile?: () => void;
 }
 
-function Viewer3D({ selectedEntityId, onOpenFile }: Viewer3DProps) {
+function Viewer3D({ selectedEntityId }: Viewer3DProps) {
   const meshes = useModelStore(state => state.meshes);
-  const loadedFilePath = useModelStore(state => state.loadedFilePath);
 
   const meshRenderData = useMemo(() => {
-    const data: Array<{ entity_id: number; bbox: { min: [number, number, number]; max: [number, number, number] } | null; color: [number, number, number]; opacity: number }> = [];
+    const data: Array<{
+      entity_id: number;
+      bbox: { min: [number, number, number]; max: [number, number, number] } | null;
+      color: [number, number, number];
+      opacity: number;
+      vertices: number[];
+      indices: number[];
+      normals: number[];
+    }> = [];
+
+    console.log('[Viewer3D] meshes.size =', meshes.size);
     
-    meshes.forEach((items) => {
+    meshes.forEach((items, key) => {
+      console.log('[Viewer3D] Processing mesh key:', key, 'items:', items.length);
       for (const item of items) {
         const colorDiffuse = (item.material.color_diffuse as unknown as [number, number, number]) || [0.5, 0.5, 0.5];
         data.push({
@@ -23,29 +33,74 @@ function Viewer3D({ selectedEntityId, onOpenFile }: Viewer3DProps) {
           bbox: item.bbox ? { min: item.bbox.min as [number, number, number], max: item.bbox.max as [number, number, number] } : null,
           color: colorDiffuse,
           opacity: item.material.opacity ?? 0.9,
+          vertices: item.vertices || [],
+          indices: item.indices || [],
+          normals: item.normals || [],
         });
       }
     });
+
+    console.log('[Viewer3D] meshRenderData.length =', data.length);
+    if (data.length > 0) {
+      console.log('[Viewer3D] First mesh:', {
+        entity_id: data[0].entity_id,
+        vertices: data[0].vertices.length,
+        indices: data[0].indices.length,
+        bbox: data[0].bbox
+      });
+    }
 
     return data;
   }, [meshes]);
 
   const hasGeometry = meshes.size > 0;
+  console.log('[Viewer3D] hasGeometry =', hasGeometry, 'meshes.size =', meshes.size);
 
-  // Debug: log mesh state on every render
-  console.log(`[Viewer3D] RE_RENDER - meshes.size=${meshes.size}, loadedFilePath=${loadedFilePath ? 'true' : 'false'}, hasGeometry=${hasGeometry}`);
-  if (meshes.size > 0) {
-    const [firstKey, firstVal] = meshes.entries().next().value;
-    console.log('[Viewer3D] Sample mesh key:', firstKey);
-    console.log('[Viewer3D] Sample mesh val:', firstVal);
-  }
-
-  const [tick, setTick] = useState(0);
+  const [, setTick] = useState(0);
   useEffect(() => {
-    // Force re-render loop to detect state changes
     const interval = setInterval(() => setTick(t => t + 1), 500);
     return () => clearInterval(interval);
   }, []);
+
+  const { cameraTarget, cameraLookAt } = useMemo(() => {
+    if (!hasGeometry) return { 
+      cameraTarget: [5, 5, 5] as [number, number, number],
+      cameraLookAt: [0, 0, 0] as [number, number, number]
+    };
+
+    let minX = Infinity, minY = Infinity, minZ = Infinity;
+    let maxX = -Infinity, maxY = -Infinity, maxZ = -Infinity;
+
+    for (const mesh of meshRenderData) {
+      if (mesh.bbox) {
+        minX = Math.min(minX, mesh.bbox.min[0]);
+        minY = Math.min(minY, mesh.bbox.min[1]);
+        minZ = Math.min(minZ, mesh.bbox.min[2]);
+        maxX = Math.max(maxX, mesh.bbox.max[0]);
+        maxY = Math.max(maxY, mesh.bbox.max[1]);
+        maxZ = Math.max(maxZ, mesh.bbox.max[2]);
+      }
+    }
+
+    if (minX === Infinity) return { 
+      cameraTarget: [5, 5, 5] as [number, number, number],
+      cameraLookAt: [0, 0, 0] as [number, number, number]
+    };
+
+    const cx = (minX + maxX) / 2;
+    const cy = (minY + maxY) / 2;
+    const cz = (minZ + maxZ) / 2;
+    const size = Math.max(maxX - minX, maxY - minY, maxZ - minZ);
+    const dist = size * 1.5;
+
+    // Rotate coordinates by -PI/2 around X: (x, y, z) -> (x, z, -y)
+    const rcx = cx, rcy = cz, rcz = -cy;
+    const camPos: [number, number, number] = [rcx + dist, rcy + dist * 0.5, rcz + dist];
+    const lookAt: [number, number, number] = [rcx, rcy, rcz];
+
+    console.log('[Viewer3D] cameraTarget:', camPos, 'lookAt:', lookAt, 'size:', size);
+    return { cameraTarget: camPos, cameraLookAt: lookAt };
+  }, [meshRenderData, hasGeometry]);
 
   return (
     <div className="viewer-container">
@@ -55,21 +110,12 @@ function Viewer3D({ selectedEntityId, onOpenFile }: Viewer3DProps) {
           <span style={{ fontSize: '12px', color: '#6b8e6b' }}>
             {meshes.size} entities rendered
           </span>
-        ) : loadedFilePath ? (
-          <span style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>No geometry data</span>
-        ) : onOpenFile ? (
-          <button
-            className="toolbar-button"
-            onClick={onOpenFile}
-          >
-            Open IFC File
-          </button>
-        ) : null}
+        ) : <span style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>No geometry data</span>}
       </div>
 
       <Canvas
         style={{ flex: 1 }}
-        camera={{ position: [5, 5, 5], fov: 50 }}
+        camera={{ position: cameraTarget, fov: 50 }}
         dpr={[1, 2]}
       >
         <color attach="background" args={['#1a1a2e']} />
@@ -80,25 +126,30 @@ function Viewer3D({ selectedEntityId, onOpenFile }: Viewer3DProps) {
 
         {hasGeometry ? (
           <>
-            <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.01, 0]}>
-              <planeGeometry args={[100, 100]} />
-              <meshStandardMaterial
-                color="#1e2746"
-                roughness={1}
-                metalness={0}
-              />
-            </mesh>
-            <Suspense fallback={null}>
-              {meshRenderData.map((mesh) => (
-                <BoxMesh
-                  key={mesh.entity_id}
-                  selectedEntityId={selectedEntityId}
-                  bbox={mesh.bbox}
-                  color={mesh.color}
-                  opacity={mesh.opacity}
-                />
-              ))}
-            </Suspense>
+            <group rotation={[-Math.PI / 2, 0, 0]}>
+              <Suspense fallback={null}>
+                {meshRenderData.map((mesh) => (
+                  mesh.vertices.length > 0 && mesh.indices.length > 0 ? (
+                    <MeshGeometry
+                      key={mesh.entity_id}
+                      vertices={mesh.vertices}
+                      indices={mesh.indices}
+                      normals={mesh.normals}
+                      color={mesh.color}
+                      opacity={mesh.opacity}
+                    />
+                  ) : (
+                    <BoxMesh
+                      key={mesh.entity_id}
+                      selectedEntityId={selectedEntityId}
+                      bbox={mesh.bbox}
+                      color={mesh.color}
+                      opacity={mesh.opacity}
+                    />
+                  )
+                ))}
+              </Suspense>
+            </group>
           </>
         ) : null}
 
@@ -106,10 +157,61 @@ function Viewer3D({ selectedEntityId, onOpenFile }: Viewer3DProps) {
           enableDamping
           dampingFactor={0.05}
           minDistance={1}
-          maxDistance={100}
+          maxDistance={500}
+          target={cameraLookAt}
         />
       </Canvas>
     </div>
+  );
+}
+
+function MeshGeometry({
+  vertices,
+  indices,
+  normals,
+  color,
+  opacity,
+}: {
+  vertices: number[];
+  indices: number[];
+  normals: number[];
+  color: [number, number, number];
+  opacity: number;
+}) {
+  const geometry = useMemo(() => {
+    const geom = new THREE.BufferGeometry();
+
+    const posArray = new Float32Array(vertices);
+    geom.setAttribute('position', new THREE.BufferAttribute(posArray, 3));
+
+    if (indices.length > 0) {
+      const indexArray = new Uint32Array(indices);
+      geom.setIndex(new THREE.BufferAttribute(indexArray, 1));
+    }
+
+    if (normals.length > 0 && normals.length === vertices.length) {
+      const normalArray = new Float32Array(normals);
+      geom.setAttribute('normal', new THREE.BufferAttribute(normalArray, 3));
+    } else {
+      geom.computeVertexNormals();
+    }
+
+    return geom;
+  }, [vertices, indices, normals]);
+
+  return (
+    <mesh geometry={geometry}>
+      <meshStandardMaterial
+        color={colorToHex(color)}
+        emissive={colorToHex(color)}
+        emissiveIntensity={0.1}
+        transparent={opacity < 1}
+        opacity={opacity}
+        roughness={0.7}
+        metalness={0.1}
+        side={THREE.DoubleSide}
+      />
+    </mesh>
   );
 }
 

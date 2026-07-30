@@ -27,6 +27,9 @@ const char* ifc_entity_global_id(IfcModelHandle model, IfcEntityId id);
 char* ifc_geometry_extract(IfcModelHandle model, IfcEntityId entity_id, int* out_len);
 void ifc_geometry_free(char* json);
 
+// Extract all geometry from model (returns JSON array)
+char* ifc_extract_all_geometry(IfcModelHandle model, int* out_len);
+
 #ifdef __cplusplus
 }
 #endif
