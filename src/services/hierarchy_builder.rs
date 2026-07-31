@@ -457,6 +457,19 @@ pub fn build_hierarchy(entities: &HashMap<u64, EntitySnapshot>) -> Result<TreeNo
                 let mut site_elems_per_assembly: HashMap<u64, Vec<u64>> = HashMap::new();
                 let mut site_orphan_elems: Vec<u64> = Vec::new();
                 
+                // First, collect all elements from all assemblies
+                let mut all_asm_elem_ids: Vec<u64> = Vec::new();
+                for asm_id in &site_asm_ids {
+                    if let Some(a_elem_ids) = containment_map.get(asm_id) {
+                        for eid in a_elem_ids {
+                            if !all_asm_elem_ids.contains(eid) {
+                                all_asm_elem_ids.push(*eid);
+                            }
+                        }
+                    }
+                }
+                
+                // Process elements directly in site
                 for elem_id in site_elem_ids {
                     if let Some(elem_entity) = entities.get(&elem_id) {
                         if !is_building_element(&elem_entity.ifc_type.0) {
@@ -477,34 +490,38 @@ pub fn build_hierarchy(entities: &HashMap<u64, EntitySnapshot>) -> Result<TreeNo
                     }
                 }
                 
-                // Also add elements contained in each assembly
-                for asm_id in &site_asm_ids {
-                    if let Some(asm_elem_ids) = containment_map.get(asm_id) {
-                        for elem_id in asm_elem_ids {
-                            if let Some(elem_entity) = entities.get(elem_id) {
-                                if is_building_element(&elem_entity.ifc_type.0) {
-                                    if !site_elems_per_assembly.get(asm_id).unwrap_or(&Vec::new()).contains(elem_id) {
-                                        site_elems_per_assembly.entry(*asm_id).or_default().push(*elem_id);
+                // Process elements contained in assemblies
+                for elem_id in all_asm_elem_ids {
+                    if let Some(elem_entity) = entities.get(&elem_id) {
+                        if !is_building_element(&elem_entity.ifc_type.0) {
+                            continue;
+                        }
+                        let mut assigned: Option<u64> = None;
+                        for aid in &site_asm_ids {
+                            if element_references(elem_entity, *aid) {
+                                assigned = Some(*aid);
+                                break;
+                            }
+                        }
+                        if let Some(aid) = assigned {
+                            if !site_elems_per_assembly.get(&aid).unwrap_or(&Vec::new()).contains(&elem_id) {
+                                site_elems_per_assembly.entry(aid).or_default().push(elem_id);
+                            }
+                        } else {
+                            // Try to assign to any assembly that contains this element
+                            for aid in &site_asm_ids {
+                                if let Some(a_elem_ids) = containment_map.get(aid) {
+                                    if a_elem_ids.contains(&elem_id) {
+                                        if !site_elems_per_assembly.get(aid).unwrap_or(&Vec::new()).contains(&elem_id) {
+                                            site_elems_per_assembly.entry(*aid).or_default().push(elem_id);
+                                            assigned = Some(*aid);
+                                            break;
+                                        }
                                     }
                                 }
                             }
-                        }
-                    }
-                }
-
-                // Also add elements decomposed by each assembly
-                for asm_id in &site_asm_ids {
-                    if let Some(asm_child_ids) = decomposes_map.get(asm_id) {
-                        for elem_id in asm_child_ids {
-                            if let Some(elem_entity) = entities.get(elem_id) {
-                                if is_building_element(&elem_entity.ifc_type.0) {
-                                    let key = *asm_id;
-                                    if !site_elems_per_assembly.contains_key(&key) {
-                                        site_elems_per_assembly.entry(key).or_default().push(*elem_id);
-                                    } else if !site_elems_per_assembly.get(&key).unwrap().contains(elem_id) {
-                                        site_elems_per_assembly.get_mut(&key).unwrap().push(*elem_id);
-                                    }
-                                }
+                            if assigned.is_none() {
+                                site_orphan_elems.push(elem_id);
                             }
                         }
                     }
@@ -606,6 +623,19 @@ pub fn build_hierarchy(entities: &HashMap<u64, EntitySnapshot>) -> Result<TreeNo
                 let mut elements_per_assembly: HashMap<u64, Vec<u64>> = HashMap::new();
                 let mut orphan_elems: Vec<u64> = Vec::new();
                 
+                // First, collect all elements from all assemblies
+                let mut all_asm_elem_ids: Vec<u64> = Vec::new();
+                for asm_id in &asm_ids {
+                    if let Some(a_elem_ids) = containment_map.get(asm_id) {
+                        for eid in a_elem_ids {
+                            if !all_asm_elem_ids.contains(eid) {
+                                all_asm_elem_ids.push(*eid);
+                            }
+                        }
+                    }
+                }
+                
+                // Process elements directly in building
                 for elem_id in elem_ids {
                     if let Some(elem_entity) = entities.get(&elem_id) {
                         if !is_building_element(&elem_entity.ifc_type.0) {
@@ -626,16 +656,38 @@ pub fn build_hierarchy(entities: &HashMap<u64, EntitySnapshot>) -> Result<TreeNo
                     }
                 }
                 
-                // Also add elements contained in each assembly
-                for asm_id in &asm_ids {
-                    if let Some(a_elem_ids) = containment_map.get(asm_id) {
-                        for eid in a_elem_ids {
-                            if let Some(ee) = entities.get(eid) {
-                                if is_building_element(&ee.ifc_type.0) {
-                                    if !elements_per_assembly.get(asm_id).unwrap_or(&Vec::new()).contains(eid) {
-                                        elements_per_assembly.entry(*asm_id).or_default().push(*eid);
+                // Process elements contained in assemblies
+                for elem_id in all_asm_elem_ids {
+                    if let Some(elem_entity) = entities.get(&elem_id) {
+                        if !is_building_element(&elem_entity.ifc_type.0) {
+                            continue;
+                        }
+                        let mut assigned: Option<u64> = None;
+                        for aid in &asm_ids {
+                            if element_references(elem_entity, *aid) {
+                                assigned = Some(*aid);
+                                break;
+                            }
+                        }
+                        if let Some(aid) = assigned {
+                            if !elements_per_assembly.get(&aid).unwrap_or(&Vec::new()).contains(&elem_id) {
+                                elements_per_assembly.entry(aid).or_default().push(elem_id);
+                            }
+                        } else {
+                            // Try to assign to any assembly that contains this element
+                            for aid in &asm_ids {
+                                if let Some(a_elem_ids) = containment_map.get(aid) {
+                                    if a_elem_ids.contains(&elem_id) {
+                                        if !elements_per_assembly.get(aid).unwrap_or(&Vec::new()).contains(&elem_id) {
+                                            elements_per_assembly.entry(*aid).or_default().push(elem_id);
+                                            assigned = Some(*aid);
+                                            break;
+                                        }
                                     }
                                 }
+                            }
+                            if assigned.is_none() {
+                                orphan_elems.push(elem_id);
                             }
                         }
                     }
