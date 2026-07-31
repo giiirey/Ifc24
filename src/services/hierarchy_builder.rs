@@ -703,72 +703,23 @@ pub fn build_hierarchy(entities: &HashMap<u64, EntitySnapshot>) -> Result<TreeNo
         }
     }
 
-    // Add orphan assemblies under appropriate building storeys
+    // Add orphan assemblies (not linked via decomposition) directly under root
     let mut added_ids: HashSet<u64> = root.flatten().iter().map(|n| n.id).collect();
-    
-    // Find all building storeys
-    let storey_nodes: Vec<&TreeNode> = root
-        .flatten()
-        .into_iter()
-        .filter(|n| n.ifc_type == "IfcBuildingStorey")
-        .collect();
-    
-    let storey_len = storey_nodes.len();
-    
-    // Distribute orphan assemblies across building storeys
-    let orphan_assemblies: Vec<&EntitySnapshot> = assembly_nodes
-        .iter()
-        .filter(|(_, e)| !added_ids.contains(&e.id))
-        .map(|(_, e)| &**e)
-        .collect();
-    
-    if !orphan_assemblies.is_empty() && storey_len > 0 {
-        for (i, entity) in orphan_assemblies.iter().enumerate() {
-            let storey_idx = i % storey_len;
-            let storey_node = storey_nodes[storey_idx];
-            let mut asm_node = TreeNode::from_entity(
-                entity.id,
-                &entity.display_name(),
-                &format!("{:?}", entity.ifc_type.0),
-            );
-            storey_node.children.push(asm_node);
-            added_ids.insert(entity.id);
-        }
-    } else if !orphan_assemblies.is_empty() {
-        // No storeys, add under root
-        for entity in &orphan_assemblies {
+    for (&id, entity) in &assembly_nodes {
+        if !added_ids.contains(&id) {
             root.add_child(TreeNode::from_entity(
-                entity.id,
+                id,
                 &entity.display_name(),
                 &format!("{:?}", entity.ifc_type.0),
             ));
-            added_ids.insert(entity.id);
+            added_ids.insert(id);
         }
     }
 
-    // Add orphan building elements under appropriate building storeys
+    // Add orphan building elements not contained in any spatial structure
     let contained_ids: HashSet<u64> = containment_map.values().flatten().cloned().collect();
-    let orphan_elements: Vec<&EntitySnapshot> = building_elements
-        .iter()
-        .filter(|e| !contained_ids.contains(&e.id) && !added_ids.contains(&e.id))
-        .map(|e| &**e)
-        .collect();
-    
-    if !orphan_elements.is_empty() && storey_len > 0 {
-        for (i, entity) in orphan_elements.iter().enumerate() {
-            let storey_idx = i % storey_len;
-            let storey_node = storey_nodes[storey_idx];
-            let mut elem_node = TreeNode::from_entity(
-                entity.id,
-                &entity.display_name(),
-                &format!("{:?}", entity.ifc_type.0),
-            );
-            storey_node.children.push(elem_node);
-            added_ids.insert(entity.id);
-        }
-    } else if !orphan_elements.is_empty() {
-        // No storeys, add under root
-        for entity in &orphan_elements {
+    for entity in &building_elements {
+        if !contained_ids.contains(&entity.id) && !added_ids.contains(&entity.id) {
             root.add_child(TreeNode::from_entity(
                 entity.id,
                 &entity.display_name(),
