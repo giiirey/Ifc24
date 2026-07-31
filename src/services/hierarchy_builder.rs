@@ -707,7 +707,7 @@ pub fn build_hierarchy(entities: &HashMap<u64, EntitySnapshot>) -> Result<TreeNo
     let mut added_ids: HashSet<u64> = root.flatten().iter().map(|n| n.id).collect();
     
     // Find all building storeys
-    let mut storey_nodes: Vec<let storey_nodes: Vec<&TreeNode>TreeNode> = root
+    let storey_nodes: Vec<&TreeNode> = root
         .flatten()
         .into_iter()
         .filter(|n| n.ifc_type == "IfcBuildingStorey")
@@ -725,13 +725,13 @@ pub fn build_hierarchy(entities: &HashMap<u64, EntitySnapshot>) -> Result<TreeNo
     if !orphan_assemblies.is_empty() && storey_len > 0 {
         for (i, entity) in orphan_assemblies.iter().enumerate() {
             let storey_idx = i % storey_len;
-            let mut storey_node = &mut storey_nodes[storey_idx];
+            let storey_node = storey_nodes[storey_idx];
             let mut asm_node = TreeNode::from_entity(
                 entity.id,
                 &entity.display_name(),
                 &format!("{:?}", entity.ifc_type.0),
             );
-            storey_node.add_child(asm_node);
+            storey_node.children.push(asm_node);
             added_ids.insert(entity.id);
         }
     } else if !orphan_assemblies.is_empty() {
@@ -757,13 +757,13 @@ pub fn build_hierarchy(entities: &HashMap<u64, EntitySnapshot>) -> Result<TreeNo
     if !orphan_elements.is_empty() && storey_len > 0 {
         for (i, entity) in orphan_elements.iter().enumerate() {
             let storey_idx = i % storey_len;
-            let mut storey_node = &mut storey_nodes[storey_idx];
+            let storey_node = storey_nodes[storey_idx];
             let mut elem_node = TreeNode::from_entity(
                 entity.id,
                 &entity.display_name(),
                 &format!("{:?}", entity.ifc_type.0),
             );
-            storey_node.add_child(elem_node);
+            storey_node.children.push(elem_node);
             added_ids.insert(entity.id);
         }
     } else if !orphan_elements.is_empty() {
@@ -1072,17 +1072,14 @@ fn add_assemblies_and_elements(
         }
     }
     
-    // Add orphan elements only if parent is a building storey (not project)
-    // Building elements should be under IfcBuildingStorey, not directly under IfcProject
-    if node.is_building_storey() {
-        for elem_id in orphan_elements {
-            if let Some(elem_entity) = entities.get(&elem_id) {
-                node.add_child(TreeNode::from_entity(
-                    elem_id,
-                    &elem_entity.display_name(),
-                    &format!("{:?}", elem_entity.ifc_type.0),
-                ));
-            }
+    // Add orphan elements directly under the node
+    for elem_id in orphan_elements {
+        if let Some(elem_entity) = entities.get(&elem_id) {
+            node.add_child(TreeNode::from_entity(
+                elem_id,
+                &elem_entity.display_name(),
+                &format!("{:?}", elem_entity.ifc_type.0),
+            ));
         }
     }
 }
