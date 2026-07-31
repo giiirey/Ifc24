@@ -1059,8 +1059,10 @@ fn add_assemblies_and_elements(
         if let Some(asm_elem_ids) = containment_map.get(asm_id) {
             for elem_id in asm_elem_ids {
                 if let Some(elem_entity) = entities.get(elem_id) {
-                    if is_building_element(&elem_entity.ifc_type.0) && !elements_per_assembly.contains_key(asm_id) {
-                        elements_per_assembly.entry(*asm_id).or_default().push(*elem_id);
+                    if is_building_element(&elem_entity.ifc_type.0) {
+                        if !elements_per_assembly.get(asm_id).unwrap_or(&Vec::new()).contains(elem_id) {
+                            elements_per_assembly.entry(*asm_id).or_default().push(*elem_id);
+                        }
                     }
                 }
             }
@@ -1073,11 +1075,8 @@ fn add_assemblies_and_elements(
             for elem_id in asm_child_ids {
                 if let Some(elem_entity) = entities.get(elem_id) {
                     if is_building_element(&elem_entity.ifc_type.0) {
-                        let key = *asm_id;
-                        if !elements_per_assembly.contains_key(&key) {
-                            elements_per_assembly.entry(key).or_default().push(*elem_id);
-                        } else if !elements_per_assembly.get(&key).unwrap().contains(elem_id) {
-                            elements_per_assembly.get_mut(&key).unwrap().push(*elem_id);
+                        if !elements_per_assembly.get(asm_id).unwrap_or(&Vec::new()).contains(elem_id) {
+                            elements_per_assembly.entry(*asm_id).or_default().push(*elem_id);
                         }
                     }
                 }
