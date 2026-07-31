@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react';
 export interface EntityData {
   id: number;
   global_id: string;
-  ifc_type: string;
+  ifc_type: string | { name?: string };
   name?: string;
   description?: string;
   attributes: [string, string][];
@@ -24,6 +24,7 @@ const mockEntities: Record<number, EntityData> = {
     name: 'Example Building Project',
     description: 'IFC example model for visualization testing',
     attributes: [
+      ['GlobalId', '3$jT0DjvX7G$qL5nM0rZ8w'],
       ['Name', 'Example Building Project'],
       ['ObjectType', 'Building'],
       ['UnitsInContext', '[object]'],
@@ -35,6 +36,7 @@ const mockEntities: Record<number, EntityData> = {
     ifc_type: 'IfcSite',
     name: 'Default Site',
     attributes: [
+      ['GlobalId', '1$mK9pL2xR4vN6wQ8yB0c'],
       ['Name', 'Default Site'],
       ['LongestEastWestAxis', '100.0'],
       ['LongestNorthSouthAxis', '80.0'],
@@ -46,6 +48,7 @@ const mockEntities: Record<number, EntityData> = {
     ifc_type: 'IfcBuilding',
     name: 'Default Building',
     attributes: [
+      ['GlobalId', '2$aB3cD4eF5gH6iJ7kL8m'],
       ['Name', 'Default Building'],
       ['BuildingHeight', '10.0'],
     ],
@@ -56,6 +59,7 @@ const mockEntities: Record<number, EntityData> = {
     ifc_type: 'IfcBuildingStorey',
     name: 'Ground Floor',
     attributes: [
+      ['GlobalId', '4$nP9qR8sT7uV6wX5yZ4a'],
       ['Name', 'Ground Floor'],
       ['StoreyHigh', '3.0'],
     ],
@@ -67,6 +71,7 @@ const mockEntities: Record<number, EntityData> = {
     name: 'Wall - Outer',
     description: 'Outer load-bearing wall',
     attributes: [
+      ['GlobalId', '5$bC6dE7fG8hI9jK0lM1n'],
       ['Name', 'Wall - Outer'],
       ['Tag', 'W-001'],
       ['GlobalLength', '12.5'],
@@ -80,6 +85,7 @@ const mockEntities: Record<number, EntityData> = {
     name: 'Slab - Ground',
     description: 'Ground floor structural slab',
     attributes: [
+      ['GlobalId', '6$oP7qR8sT9uV0wX1yZ2a'],
       ['Name', 'Slab - Ground'],
       ['Tag', 'SLAB-001'],
       ['GlobalLength', '15.0'],
@@ -92,6 +98,7 @@ const mockEntities: Record<number, EntityData> = {
     ifc_type: 'IfcColumn',
     name: 'Column - C1',
     attributes: [
+      ['GlobalId', '7$bC8dE9fG0hI1jK2lM3n'],
       ['Name', 'Column - C1'],
       ['Tag', 'COL-001'],
     ],
@@ -102,6 +109,7 @@ const mockEntities: Record<number, EntityData> = {
     ifc_type: 'IfcDoor',
     name: 'Door - D001',
     attributes: [
+      ['GlobalId', '8$oP9qR0sT1uV2wX3yZ4a'],
       ['Name', 'Door - D001'],
       ['Tag', 'DOOR-001'],
       ['Height', '2.1'],
@@ -114,6 +122,7 @@ const mockEntities: Record<number, EntityData> = {
     ifc_type: 'IfcWindow',
     name: 'Window - W001',
     attributes: [
+      ['GlobalId', '9$bC0dE1fG2hI3jK4lM5n'],
       ['Name', 'Window - W001'],
       ['Tag', 'WIN-001'],
       ['Height', '1.2'],
@@ -126,6 +135,7 @@ const mockEntities: Record<number, EntityData> = {
     ifc_type: 'IfcBeam',
     name: 'Beam - B001',
     attributes: [
+      ['GlobalId', '10$oP1qR2sT3uV4wX5yZ6a'],
       ['Name', 'Beam - B001'],
       ['Tag', 'BEAM-001'],
     ],
@@ -135,7 +145,7 @@ const mockEntities: Record<number, EntityData> = {
 function getIfcTypeStr(ifcType: string | { name?: string } | undefined): string {
   if (!ifcType) return 'Unknown';
   if (typeof ifcType === 'string') return ifcType;
-  if (typeof ifcType === 'object' && ifcType !== null) return (ifcType as any).name || 'Unknown';
+  if (typeof ifcType === 'object' && ifcType !== null && 'name' in ifcType) return (ifcType as any).name || 'Unknown';
   return String(ifcType);
 }
 
@@ -146,9 +156,11 @@ function PropertiesPanel({ selectedEntityId, entities, meshes }: PropertiesPanel
     if (selectedEntityId !== null) {
       if (entities && entities.has(selectedEntityId)) {
         const data = entities.get(selectedEntityId);
+        console.log('[PropertiesPanel] Entity from store:', JSON.stringify(data, null, 2));
         setEntity(data as EntityData || null);
       } else {
         const data = mockEntities[selectedEntityId];
+        console.log('[PropertiesPanel] Entity from mock:', JSON.stringify(data, null, 2));
         setEntity(data || null);
       }
     } else {
@@ -165,8 +177,8 @@ function PropertiesPanel({ selectedEntityId, entities, meshes }: PropertiesPanel
       {entity ? (
         <div className="properties-content">
           <Section title="Identification">
-            <PropertyRow label="Global ID" value={entity.global_id} />
-            <PropertyRow label="Name" value={entity.name || entity.global_id} />
+            <PropertyRow label="Global ID" value={entity.global_id || 'N/A'} copyable />
+            <PropertyRow label="Name" value={entity.name || 'N/A'} />
             <PropertyRow label="Type" value={String(entity.ifc_type)} copyable />
             {entity.description && (
               <PropertyRow label="Description" value={entity.description} multiline />

@@ -13,7 +13,7 @@ export interface ModelInfo {
 export interface EntitySnapshot {
   id: number;
   global_id: string;
-  ifc_type: string;
+  ifc_type: string | { name?: string };
   name?: string;
   description?: string;
   attributes: [string, string][];
@@ -105,16 +105,16 @@ async function mockInvoke(_command: string, _args?: unknown): Promise<unknown> {
   await new Promise(resolve => setTimeout(resolve, 150));
 
   const mockEntities: EntitySnapshot[] = [
-    { id: 1, global_id: '3jT0DjvX7GqL5nM0rZ8w', ifc_type: 'IfcProject', name: 'Mock Building Project', description: 'IFC test model', attributes: [['Name', 'Mock Building Project'], ['ObjectType', 'Building']] },
-    { id: 2, global_id: '1mK9pL2xR4vN6wQ8yB0c', ifc_type: 'IfcSite', name: 'Default Site', attributes: [['Name', 'Default Site']] },
-    { id: 3, global_id: '2aB3cD4eF5gH6iJ7kL8m', ifc_type: 'IfcBuilding', name: 'Mock Building', attributes: [['Name', 'Mock Building']] },
-    { id: 4, global_id: '4nP9qR8sT7uV6wX5yZ4a', ifc_type: 'IfcBuildingStorey', name: 'Ground Floor', attributes: [['Name', 'Ground Floor']] },
-    { id: 5, global_id: '5bC6dE7fG8hI9jK0lM1n', ifc_type: 'IfcWall', name: 'Wall - Outer', description: 'Outer wall', attributes: [['Name', 'Wall - Outer'], ['Tag', 'W-001']] },
-    { id: 6, global_id: '6oP7qR8sT9uV0wX1yZ2a', ifc_type: 'IfcSlab', name: 'Slab - Ground', description: 'Ground slab', attributes: [['Name', 'Slab - Ground'], ['Tag', 'SLAB-001']] },
-    { id: 7, global_id: '7bC8dE9fG0hI1jK2lM3n', ifc_type: 'IfcColumn', name: 'Column - C1', attributes: [['Name', 'Column - C1'], ['Tag', 'COL-001']] },
-    { id: 8, global_id: '8oP9qR0sT1uV2wX3yZ4a', ifc_type: 'IfcDoor', name: 'Door - D001', attributes: [['Name', 'Door - D001'], ['Tag', 'DOOR-001']] },
-    { id: 9, global_id: '9bC0dE1fG2hI3jK4lM5n', ifc_type: 'IfcWindow', name: 'Window - W001', attributes: [['Name', 'Window - W001'], ['Tag', 'WIN-001']] },
-    { id: 10, global_id: '10oP1qR2sT3uV4wX5yZ6a', ifc_type: 'IfcBeam', name: 'Beam - B001', attributes: [['Name', 'Beam - B001'], ['Tag', 'BEAM-001']] },
+    { id: 1, global_id: '3jT0DjvX7GqL5nM0rZ8w', ifc_type: 'IfcProject', name: 'Mock Building Project', description: 'IFC test model', attributes: [['GlobalId', '3jT0DjvX7GqL5nM0rZ8w'], ['Name', 'Mock Building Project'], ['ObjectType', 'Building']] },
+    { id: 2, global_id: '1mK9pL2xR4vN6wQ8yB0c', ifc_type: 'IfcSite', name: 'Default Site', attributes: [['GlobalId', '1mK9pL2xR4vN6wQ8yB0c'], ['Name', 'Default Site']] },
+    { id: 3, global_id: '2aB3cD4eF5gH6iJ7kL8m', ifc_type: 'IfcBuilding', name: 'Mock Building', attributes: [['GlobalId', '2aB3cD4eF5gH6iJ7kL8m'], ['Name', 'Mock Building']] },
+    { id: 4, global_id: '4nP9qR8sT7uV6wX5yZ4a', ifc_type: 'IfcBuildingStorey', name: 'Ground Floor', attributes: [['GlobalId', '4nP9qR8sT7uV6wX5yZ4a'], ['Name', 'Ground Floor']] },
+    { id: 5, global_id: '5bC6dE7fG8hI9jK0lM1n', ifc_type: 'IfcWall', name: 'Wall - Outer', description: 'Outer wall', attributes: [['GlobalId', '5bC6dE7fG8hI9jK0lM1n'], ['Name', 'Wall - Outer'], ['Tag', 'W-001']] },
+    { id: 6, global_id: '6oP7qR8sT9uV0wX1yZ2a', ifc_type: 'IfcSlab', name: 'Slab - Ground', description: 'Ground slab', attributes: [['GlobalId', '6oP7qR8sT9uV0wX1yZ2a'], ['Name', 'Slab - Ground'], ['Tag', 'SLAB-001']] },
+    { id: 7, global_id: '7bC8dE9fG0hI1jK2lM3n', ifc_type: 'IfcColumn', name: 'Column - C1', attributes: [['GlobalId', '7bC8dE9fG0hI1jK2lM3n'], ['Name', 'Column - C1'], ['Tag', 'COL-001']] },
+    { id: 8, global_id: '8oP9qR0sT1uV2wX3yZ4a', ifc_type: 'IfcDoor', name: 'Door - D001', attributes: [['GlobalId', '8oP9qR0sT1uV2wX3yZ4a'], ['Name', 'Door - D001'], ['Tag', 'DOOR-001']] },
+    { id: 9, global_id: '9bC0dE1fG2hI3jK4lM5n', ifc_type: 'IfcWindow', name: 'Window - W001', attributes: [['GlobalId', '9bC0dE1fG2hI3jK4lM5n'], ['Name', 'Window - W001'], ['Tag', 'WIN-001']] },
+    { id: 10, global_id: '10oP1qR2sT3uV4wX5yZ6a', ifc_type: 'IfcBeam', name: 'Beam - B001', attributes: [['GlobalId', '10oP1qR2sT3uV4wX5yZ6a'], ['Name', 'Beam - B001'], ['Tag', 'BEAM-001']] },
   ];
 
   const args = _args as Record<string, unknown> | undefined;
@@ -135,10 +135,6 @@ async function mockInvoke(_command: string, _args?: unknown): Promise<unknown> {
     case 'open_ifc_file_from_dialog':
       console.log('[MOCK] open_ifc_file_from_dialog — returning mock data');
       return { path: '/mock/example.ifc', entity_count: mockEntities.length, project_name: 'Mock Building' };
-
-    case 'get_all_entities':
-      console.log('[MOCK] get_all_entities — returning', mockEntities.length, 'entities');
-      return mockEntities;
 
     case 'open_ifc_file_from_dialog_v2':
       console.log('[MOCK] open_ifc_file_from_dialog_v2 returning mock data');
@@ -169,26 +165,30 @@ async function mockInvoke(_command: string, _args?: unknown): Promise<unknown> {
     case 'get_entity_types': {
       const typeMap = new Map<string, number>();
       mockEntities.forEach(e => {
-        typeMap.set(e.ifc_type, (typeMap.get(e.ifc_type) || 0) + 1);
+        const typeStr = typeof e.ifc_type === 'string' ? e.ifc_type : (e.ifc_type as any).name || 'Unknown';
+        typeMap.set(typeStr, (typeMap.get(typeStr) || 0) + 1);
       });
       return Array.from(typeMap.entries());
     }
     case 'load_geometry_batch':
-      return mockEntities.map(e => ({
-        entity_id: e.id,
-        vertices: [
-          -1, -1, -1, 1, -1, -1, 1, 1, -1, -1, 1, -1,
-          -1, -1, 1, 1, -1, 1, 1, 1, 1, -1, 1, 1,
-          -1, -1, -1, -1, -1, 1, -1, 1, 1, -1, 1, -1,
-          1, -1, -1, 1, -1, 1, 1, 1, 1, 1, 1, -1,
-          -1, -1, -1, -1, 1, -1, 1, 1, -1, 1, -1, -1,
-          -1, -1, 1, -1, 1, 1, 1, 1, 1, 1, -1, 1,
-        ],
-        indices: [0,1,2,0,2,3, 4,5,6,4,6,7, 8,9,10,8,10,11, 12,13,14,12,14,15, 16,17,18,16,18,19, 20,21,22,20,22,23],
-        normals: [],
-        material: { name: `${e.ifc_type}_material`, color_diffuse: getMockColor(e.ifc_type), opacity: 0.9, roughness: 0.7, metalness: 0.1 },
-        bbox: { min: [-1, -1, -1] as [number, number, number], max: [1, e.id * 3 + 2, 1] as [number, number, number] },
-      }));
+      return mockEntities.map(e => {
+        const ifcTypeStr = typeof e.ifc_type === 'string' ? e.ifc_type : (e.ifc_type as any).name || 'Unknown';
+        return {
+          entity_id: e.id,
+          vertices: [
+            -1, -1, -1, 1, -1, -1, 1, 1, -1, -1, 1, -1,
+            -1, -1, 1, 1, -1, 1, 1, 1, 1, -1, 1, 1,
+            -1, -1, -1, -1, -1, 1, -1, 1, 1, -1, 1, -1,
+            1, -1, -1, 1, -1, 1, 1, 1, 1, 1, 1, -1,
+            -1, -1, -1, -1, 1, -1, 1, 1, -1, 1, -1, -1,
+            -1, -1, 1, -1, 1, 1, 1, 1, 1, 1, -1, 1,
+          ],
+          indices: [0,1,2,0,2,3, 4,5,6,4,6,7, 8,9,10,8,10,11, 12,13,14,12,14,15, 16,17,18,16,18,19, 20,21,22,20,22,23],
+          normals: [],
+          material: { name: `${ifcTypeStr}_material`, color_diffuse: getMockColor(ifcTypeStr), opacity: 0.9, roughness: 0.7, metalness: 0.1 },
+          bbox: { min: [-1, -1, -1] as [number, number, number], max: [1, e.id * 3 + 2, 1] as [number, number, number] },
+        };
+      });
     default:
       return null;
   }

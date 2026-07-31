@@ -220,6 +220,10 @@ impl EntitySnapshot {
         self
     }
 
+    pub fn get_global_id(&self) -> String {
+        self.global_id.clone()
+    }
+
     pub fn is_spatial_element(&self) -> bool {
         matches!(
             self.ifc_type.0,

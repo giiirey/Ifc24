@@ -3,7 +3,7 @@ import { create } from 'zustand';
 export interface EntityInfo {
   id: number;
   global_id: string;
-  ifc_type: string;
+  ifc_type: string | { name?: string };
   name?: string;
   description?: string;
 }

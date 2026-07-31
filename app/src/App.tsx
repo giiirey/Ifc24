@@ -65,7 +65,10 @@ function App() {
       }
 
       const entityMap = new Map<number, EntitySnapshot>();
-      entities.forEach(e => entityMap.set(e.id, e));
+      entities.forEach(e => {
+        console.log('[App] Entity:', JSON.stringify(e, null, 2));
+        entityMap.set(e.id, e);
+      });
       store.setEntities(entityMap as Map<number, any>);
 
       console.log('[App] Step 4: loading all geometry at once...');

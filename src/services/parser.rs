@@ -98,8 +98,9 @@ fn parse_step_entity(line: &str) -> Option<EntitySnapshot> {
     
     let ifc_type = parse_ifc_type(type_str);
     let wrapper = crate::models::entity::IfcTypeWrapper(ifc_type);
-    let entity = EntitySnapshot::new(id, String::new(), wrapper);
-    let attrs = parse_attributes(&rest[paren_pos..]);
+    
+    let (global_id, attrs) = parse_attributes(&rest[paren_pos..]);
+    let entity = EntitySnapshot::new(id, global_id, wrapper);
     
     Some(entity.with_attributes(attrs))
 }
@@ -174,14 +175,35 @@ fn parse_ifc_type(s: &str) -> IfcType {
     }
 }
 
-fn parse_attributes(paren_content: &str) -> Vec<(String, String)> {
+fn parse_attributes(paren_content: &str) -> (String, Vec<(String, String)>) {
     let mut attrs = Vec::new();
     let content = paren_content.strip_prefix('(').unwrap_or(paren_content);
     let content = content.strip_suffix(';').unwrap_or(content);
     let content = content.strip_suffix(')').unwrap_or(content);
     
     let parts: Vec<&str> = split_attributes(content);
-    for part in parts {
+    
+    // Global ID - это первый атрибут без "=" (имя сущности)
+    let mut global_id = String::new();
+    for part in &parts {
+        let part = part.trim();
+        if part.is_empty() {
+            continue;
+        }
+        if part == "$" || part == ".UNDEFINED." {
+            continue;
+        }
+        // Первый атрибут БЕЗ "=" - это имя сущности (Global ID)
+        if !part.contains('=') {
+            global_id = part.to_string();
+            // Добавляем как первый атрибут
+            attrs.push((format!("Name"), global_id.clone()));
+            break;
+        }
+    }
+    
+    // Оставшиеся атрибуты с "="
+    for part in &parts {
         let part = part.trim();
         if part.is_empty() {
             attrs.push((format!("attr_{}", attrs.len()), String::new()));
@@ -198,7 +220,8 @@ fn parse_attributes(paren_content: &str) -> Vec<(String, String)> {
             attrs.push((format!("attr_{}", attrs.len()), parse_simple_value(part)));
         }
     }
-    attrs
+    
+    (global_id, attrs)
 }
 
 fn split_attributes(content: &str) -> Vec<&str> {
