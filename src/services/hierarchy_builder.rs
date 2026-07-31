@@ -1023,14 +1023,17 @@ fn add_assemblies_and_elements(
         }
     }
     
-    // Add orphan elements directly under the node
-    for elem_id in orphan_elements {
-        if let Some(elem_entity) = entities.get(&elem_id) {
-            node.add_child(TreeNode::from_entity(
-                elem_id,
-                &elem_entity.display_name(),
-                &format!("{:?}", elem_entity.ifc_type.0),
-            ));
+    // Add orphan elements only if parent is a building storey (not project)
+    // Building elements should be under IfcBuildingStorey, not directly under IfcProject
+    if node.is_building_storey() {
+        for elem_id in orphan_elements {
+            if let Some(elem_entity) = entities.get(&elem_id) {
+                node.add_child(TreeNode::from_entity(
+                    elem_id,
+                    &elem_entity.display_name(),
+                    &format!("{:?}", elem_entity.ifc_type.0),
+                ));
+            }
         }
     }
 }

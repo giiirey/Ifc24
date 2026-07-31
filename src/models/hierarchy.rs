@@ -57,6 +57,10 @@ impl TreeNode {
     pub fn count_all_nodes(&self) -> usize {
         1 + self.children.iter().map(|c| c.count_all_nodes()).sum::<usize>()
     }
+
+    pub fn is_building_storey(&self) -> bool {
+        self.ifc_type == "IfcBuildingStorey"
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
