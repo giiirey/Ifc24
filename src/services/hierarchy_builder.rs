@@ -482,8 +482,10 @@ pub fn build_hierarchy(entities: &HashMap<u64, EntitySnapshot>) -> Result<TreeNo
                     if let Some(asm_elem_ids) = containment_map.get(asm_id) {
                         for elem_id in asm_elem_ids {
                             if let Some(elem_entity) = entities.get(elem_id) {
-                                if is_building_element(&elem_entity.ifc_type.0) && !site_elems_per_assembly.contains_key(asm_id) {
-                                    site_elems_per_assembly.entry(*asm_id).or_default().push(*elem_id);
+                                if is_building_element(&elem_entity.ifc_type.0) {
+                                    if !site_elems_per_assembly.get(asm_id).unwrap_or(&Vec::new()).contains(elem_id) {
+                                        site_elems_per_assembly.entry(*asm_id).or_default().push(*elem_id);
+                                    }
                                 }
                             }
                         }
@@ -629,8 +631,10 @@ pub fn build_hierarchy(entities: &HashMap<u64, EntitySnapshot>) -> Result<TreeNo
                     if let Some(a_elem_ids) = containment_map.get(asm_id) {
                         for eid in a_elem_ids {
                             if let Some(ee) = entities.get(eid) {
-                                if is_building_element(&ee.ifc_type.0) && !elements_per_assembly.contains_key(asm_id) {
-                                    elements_per_assembly.entry(*asm_id).or_default().push(*eid);
+                                if is_building_element(&ee.ifc_type.0) {
+                                    if !elements_per_assembly.get(asm_id).unwrap_or(&Vec::new()).contains(eid) {
+                                        elements_per_assembly.entry(*asm_id).or_default().push(*eid);
+                                    }
                                 }
                             }
                         }
