@@ -46,6 +46,18 @@ impl TreeNode {
         None
     }
 
+    pub fn find_by_id_mut(&mut self, id: u64) -> Option<&mut TreeNode> {
+        if self.id == id {
+            return Some(self);
+        }
+        for child in &mut self.children {
+            if let Some(found) = child.find_by_id_mut(id) {
+                return Some(found);
+            }
+        }
+        None
+    }
+
     pub fn count_leaves(&self) -> usize {
         if self.children.is_empty() {
             1

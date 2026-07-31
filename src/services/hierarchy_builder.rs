@@ -703,29 +703,61 @@ pub fn build_hierarchy(entities: &HashMap<u64, EntitySnapshot>) -> Result<TreeNo
         }
     }
 
-    // Add orphan assemblies (not linked via decomposition) directly under root
-    let mut added_ids: HashSet<u64> = root.flatten().iter().map(|n| n.id).collect();
+    // Add orphan assemblies and building elements under storeys
+    let mut all_ids: HashSet<u64> = root.flatten().iter().map(|n| n.id).collect();
+    
+    // Find all building storey IDs
+    let storey_ids: Vec<u64> = root
+        .flatten()
+        .into_iter()
+        .filter(|n| n.ifc_type == "IfcBuildingStorey")
+        .map(|n| n.id)
+        .collect();
+    
+    // Add orphan assemblies under first available storey
     for (&id, entity) in &assembly_nodes {
-        if !added_ids.contains(&id) {
-            root.add_child(TreeNode::from_entity(
-                id,
-                &entity.display_name(),
-                &format!("{:?}", entity.ifc_type.0),
-            ));
-            added_ids.insert(id);
+        if !all_ids.contains(&id) {
+            if let Some(&storey_id) = storey_ids.first() {
+                let mut asm_node = TreeNode::from_entity(
+                    id,
+                    &entity.display_name(),
+                    &format!("{:?}", entity.ifc_type.0),
+                );
+                if let Some(storey_mut) = root.find_by_id_mut(storey_id) {
+                    storey_mut.add_child(asm_node);
+                }
+            } else {
+                root.add_child(TreeNode::from_entity(
+                    id,
+                    &entity.display_name(),
+                    &format!("{:?}", entity.ifc_type.0),
+                ));
+            }
+            all_ids.insert(id);
         }
     }
 
-    // Add orphan building elements not contained in any spatial structure
+    // Add orphan building elements under first available storey
     let contained_ids: HashSet<u64> = containment_map.values().flatten().cloned().collect();
     for entity in &building_elements {
-        if !contained_ids.contains(&entity.id) && !added_ids.contains(&entity.id) {
-            root.add_child(TreeNode::from_entity(
-                entity.id,
-                &entity.display_name(),
-                &format!("{:?}", entity.ifc_type.0),
-            ));
-            added_ids.insert(entity.id);
+        if !contained_ids.contains(&entity.id) && !all_ids.contains(&entity.id) {
+            if let Some(&storey_id) = storey_ids.first() {
+                if let Some(storey_mut) = root.find_by_id_mut(storey_id) {
+                    let mut elem_node = TreeNode::from_entity(
+                        entity.id,
+                        &entity.display_name(),
+                        &format!("{:?}", entity.ifc_type.0),
+                    );
+                    storey_mut.add_child(elem_node);
+                }
+            } else {
+                root.add_child(TreeNode::from_entity(
+                    entity.id,
+                    &entity.display_name(),
+                    &format!("{:?}", entity.ifc_type.0),
+                ));
+            }
+            all_ids.insert(entity.id);
         }
     }
 
