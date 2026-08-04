@@ -180,29 +180,13 @@ fn parse_attributes(paren_content: &str) -> (String, Vec<(String, String)>) {
     let content = paren_content.strip_prefix('(').unwrap_or(paren_content);
     let content = content.strip_suffix(';').unwrap_or(content);
     let content = content.strip_suffix(')').unwrap_or(content);
-    
+
     let parts: Vec<&str> = split_attributes(content);
-    
+
     // Global ID - это первый атрибут без "=" (имя сущности)
     let mut global_id = String::new();
-    for part in &parts {
-        let part = part.trim();
-        if part.is_empty() {
-            continue;
-        }
-        if part == "$" || part == ".UNDEFINED." {
-            continue;
-        }
-        // Первый атрибут БЕЗ "=" - это имя сущности (Global ID)
-        if !part.contains('=') {
-            global_id = part.to_string();
-            // Добавляем как первый атрибут
-            attrs.push((format!("Name"), global_id.clone()));
-            break;
-        }
-    }
-    
-    // Оставшиеся атрибуты с "="
+    let mut found_global_id = false;
+
     for part in &parts {
         let part = part.trim();
         if part.is_empty() {
@@ -213,6 +197,13 @@ fn parse_attributes(paren_content: &str) -> (String, Vec<(String, String)>) {
             attrs.push((format!("attr_{}", attrs.len()), part.to_string()));
             continue;
         }
+        // Первый атрибут БЕЗ "=" - это имя сущности (Global ID)
+        if !found_global_id && !part.contains('=') {
+            global_id = part.to_string();
+            found_global_id = true;
+            attrs.push((format!("Name"), global_id.clone()));
+            continue;
+        }
         if part.contains('=') {
             let (k, v) = part.split_once('=').unwrap_or(("", part));
             attrs.push((k.trim().to_string(), v.trim().replace('"', "").trim().to_string()));
@@ -220,7 +211,7 @@ fn parse_attributes(paren_content: &str) -> (String, Vec<(String, String)>) {
             attrs.push((format!("attr_{}", attrs.len()), parse_simple_value(part)));
         }
     }
-    
+
     (global_id, attrs)
 }
 

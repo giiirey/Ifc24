@@ -216,6 +216,22 @@ impl EntitySnapshot {
                 _ => {}
             }
         }
+        
+        // If name equals global_id, the parser stored GlobalId as "Name".
+        // Try to find the actual IFC entity name (3rd attribute in STEP = attr_2).
+        if self.name.as_ref().map_or(false, |n| n == &self.global_id) {
+            for (key, value) in &attributes {
+                if let Some(idx_str) = key.strip_prefix("attr_") {
+                    if let Ok(idx) = idx_str.parse::<usize>() {
+                        if idx == 3 {
+                            self.name = Some(value.clone());
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+        
         self.attributes = attributes;
         self
     }
