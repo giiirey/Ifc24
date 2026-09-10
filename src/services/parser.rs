@@ -206,7 +206,8 @@ fn parse_attributes(paren_content: &str) -> (String, Vec<(String, String)>) {
         }
         if part.contains('=') {
             let (k, v) = part.split_once('=').unwrap_or(("", part));
-            attrs.push((k.trim().to_string(), v.trim().replace('"', "").trim().to_string()));
+            let val = v.trim().trim_matches(|c| c == '\'' || c == '"').trim();
+            attrs.push((k.trim().to_string(), decode_ifc_string(val)));
         } else {
             attrs.push((format!("attr_{}", attrs.len()), parse_simple_value(part)));
         }
@@ -237,12 +238,77 @@ fn split_attributes(content: &str) -> Vec<&str> {
     parts
 }
 
+fn decode_ifc_string(s: &str) -> String {
+    let mut result = String::with_capacity(s.len());
+    let chars: Vec<char> = s.chars().collect();
+    let mut i = 0;
+
+    while i < chars.len() {
+        if chars[i] == '\\' && i + 1 < chars.len() {
+            match chars[i + 1] {
+                'X' => {
+                    if i + 3 < chars.len() && chars[i + 2] == '2' {
+                        i += 4;
+                        loop {
+                            if i + 3 < chars.len()
+                                && chars[i] == '\\'
+                                && chars[i + 1] == 'X'
+                                && chars[i + 2] == '0'
+                            {
+                                i += 4;
+                                break;
+                            }
+                            if i + 4 > chars.len() {
+                                break;
+                            }
+                            let hex: String = chars[i..i + 4].iter().collect();
+                            let code = u32::from_str_radix(&hex, 16).unwrap_or(0);
+                            result.push(char::from_u32(code).unwrap_or('\u{FFFD}'));
+                            i += 4;
+                        }
+                    } else if i + 3 < chars.len() {
+                        i += 2;
+                        let hex: String = chars[i..i + 2].iter().collect();
+                        let code = u32::from_str_radix(&hex, 16).unwrap_or(0);
+                        result.push(char::from_u32(code).unwrap_or('\u{FFFD}'));
+                        i += 2;
+                    } else {
+                        result.push(chars[i]);
+                        i += 1;
+                    }
+                }
+                'S' => {
+                    i += 2;
+                    if i < chars.len() {
+                        let code = chars[i] as u32 + 128;
+                        result.push(char::from_u32(code).unwrap_or('\u{FFFD}'));
+                        i += 1;
+                    }
+                }
+                '\\' => {
+                    result.push('\\');
+                    i += 2;
+                }
+                _ => {
+                    result.push(chars[i]);
+                    i += 1;
+                }
+            }
+        } else {
+            result.push(chars[i]);
+            i += 1;
+        }
+    }
+    result
+}
+
 fn parse_simple_value(s: &str) -> String {
     let s = s.trim();
     if s.starts_with('(') && s.ends_with(')') {
-        return s[1..s.len()-1].trim().to_string();
+        return s[1..s.len() - 1].trim().to_string();
     }
-    s.replace('"', "")
+    let s = s.trim_matches(|c| c == '\'' || c == '"');
+    decode_ifc_string(s)
 }
 
 fn create_index_file(file_path: &str) -> std::io::Result<()> {

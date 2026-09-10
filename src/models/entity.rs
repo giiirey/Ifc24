@@ -223,7 +223,7 @@ impl EntitySnapshot {
             for (key, value) in &attributes {
                 if let Some(idx_str) = key.strip_prefix("attr_") {
                     if let Ok(idx) = idx_str.parse::<usize>() {
-                        if idx == 3 {
+                        if idx == 2 {
                             self.name = Some(value.clone());
                             break;
                         }
