@@ -16,6 +16,12 @@ pub struct IfcGeometryData {
     pub normals: Vec<f32>,
 }
 
+#[derive(Debug, Deserialize)]
+struct RawAttr {
+    name: String,
+    value: String,
+}
+
 pub struct IfcModelWrapper {
     handle: IfcModelHandle,
 }
@@ -65,6 +71,28 @@ impl IfcModelWrapper {
             }
             CStr::from_ptr(ptr).to_string_lossy().into_owned()
         }
+    }
+
+    pub fn entity_attributes(&self, id: u64) -> Vec<(String, String)> {
+        let mut out_len: c_int = 0;
+
+        let json_ptr = unsafe { ifc_entity_attributes(self.handle, id, &mut out_len) };
+
+        if json_ptr.is_null() {
+            return Vec::new();
+        }
+
+        let json_str = unsafe {
+            let slice = std::slice::from_raw_parts(json_ptr as *const u8, out_len as usize);
+            String::from_utf8_lossy(slice).into_owned()
+        };
+
+        unsafe {
+            ifc_geometry_free(json_ptr);
+        }
+
+        let raw: Vec<RawAttr> = serde_json::from_str(&json_str).unwrap_or_default();
+        raw.into_iter().map(|r| (r.name, r.value)).collect()
     }
 
     pub fn extract_all_geometry(&self) -> Result<Vec<IfcGeometryData>, String> {

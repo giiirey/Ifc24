@@ -40,6 +40,22 @@ pub async fn open_ifc_file(file_path: String) -> Result<ModelInfo, String> {
             match IfcModelWrapper::open(&file_path) {
                 Ok(ifc_model) => {
                     eprintln!("[FILE_CMD] IfcOpenShell opened file successfully, entity count: {}", ifc_model.entity_count());
+                    let entity_ids: Vec<u64> = guard.entities.keys().cloned().collect();
+                    for id in entity_ids {
+                        let schema_attrs = ifc_model.entity_attributes(id);
+                        if !schema_attrs.is_empty() {
+                            if let Some(entity) = guard.entities.get_mut(&id) {
+                                entity.attributes = entity.attributes
+                                    .iter()
+                                    .enumerate()
+                                    .map(|(pos, (_, val))| {
+                                        let new_key = schema_attrs.get(pos).map(|(n, _)| n.clone()).unwrap_or_else(|| format!("attr_{}", pos));
+                                        (new_key, val.clone())
+                                    })
+                                    .collect();
+                            }
+                        }
+                    }
                     guard.ifc_model = Some(ifc_model);
                 }
                 Err(e) => {

@@ -19,8 +19,8 @@ impl<'a> GeometryResolver<'a> {
         while let Some(id) = current_id {
             if let Some(local_placement) = self.entities.get(&id) {
                 if matches!(local_placement.ifc_type.0, IfcType::IfcLocalPlacement) {
-                    let parent_ref = self.get_ref_attr(local_placement, 0);
-                    let relative_ref = self.get_ref_attr(local_placement, 1);
+                    let relative_ref = self.get_ref_attr_by_name(local_placement, "RelativePlacement")
+                        .or_else(|| self.get_ref_attr(local_placement, 1));
 
                     if let Some(rel_id) = relative_ref {
                         if let Some(matrix) = self.resolve_axis2_placement(rel_id) {
@@ -28,7 +28,7 @@ impl<'a> GeometryResolver<'a> {
                         }
                     }
 
-                    current_id = parent_ref;
+                    current_id = None;
                 } else {
                     break;
                 }
@@ -51,15 +51,18 @@ impl<'a> GeometryResolver<'a> {
             return None;
         }
 
-        let location = self.get_ref_attr(entity, 0)
+        let location = self.get_ref_attr_by_name(entity, "Location")
+            .or_else(|| self.get_ref_attr(entity, 0))
             .and_then(|loc_id| self.extract_cartesian_point(loc_id))
             .unwrap_or(Vector3::new(0.0, 0.0, 0.0));
 
-        let axis = self.get_ref_attr(entity, 1)
+        let axis = self.get_ref_attr_by_name(entity, "Axis")
+            .or_else(|| self.get_ref_attr(entity, 1))
             .and_then(|dir_id| self.extract_direction(dir_id))
             .unwrap_or(Vector3::new(0.0, 0.0, 1.0));
 
-        let ref_dir = self.get_ref_attr(entity, 2)
+        let ref_dir = self.get_ref_attr_by_name(entity, "RefDirection")
+            .or_else(|| self.get_ref_attr(entity, 2))
             .and_then(|dir_id| self.extract_direction(dir_id))
             .unwrap_or(Vector3::new(1.0, 0.0, 0.0));
 
@@ -84,7 +87,7 @@ impl<'a> GeometryResolver<'a> {
         }
 
         let coords_str = entity.attributes.iter()
-            .find(|(k, _)| k == "attr_1")
+            .find(|(k, _)| k == "Coordinates" || k == "attr_1")
             .map(|(_, v)| v.as_str())?;
 
         self.parse_coordinate_tuple(coords_str)
@@ -97,7 +100,7 @@ impl<'a> GeometryResolver<'a> {
         }
 
         let coords_str = entity.attributes.iter()
-            .find(|(k, _)| k == "attr_1")
+            .find(|(k, _)| k == "Direction" || k == "attr_1")
             .map(|(_, v)| v.as_str())?;
 
         self.parse_coordinate_tuple(coords_str)
@@ -129,7 +132,7 @@ impl<'a> GeometryResolver<'a> {
 
         if matches!(repr.ifc_type.0, IfcType::IfcProductDefinitionShape) {
             for (key, value) in &repr.attributes {
-                if key.starts_with("attr_") && value.starts_with('#') {
+                if (key.starts_with("attr_") || key == "References") && value.starts_with('#') {
                     if let Ok(shape_repr_id) = value[1..].parse::<u64>() {
                         if let Some(dims) = self.extract_from_shape_representation(shape_repr_id) {
                             return Some(dims);
@@ -139,7 +142,7 @@ impl<'a> GeometryResolver<'a> {
             }
 
             let items_str = repr.attributes.iter()
-                .find(|(k, _)| k == "attr_2")
+                .find(|(k, _)| k == "References" || k == "attr_2")
                 .map(|(_, v)| v.as_str())
                 .unwrap_or("");
 
@@ -158,7 +161,7 @@ impl<'a> GeometryResolver<'a> {
 
         if matches!(entity.ifc_type.0, IfcType::IfcShapeRepresentation) {
             let items_str = entity.attributes.iter()
-                .find(|(k, _)| k == "attr_3" || k == "attr_2")
+                .find(|(k, _)| k == "Items" || k == "attr_3" || k == "attr_2")
                 .map(|(_, v)| v.as_str())
                 .unwrap_or("");
 
@@ -169,7 +172,7 @@ impl<'a> GeometryResolver<'a> {
             }
 
             for (key, value) in &entity.attributes {
-                if key.starts_with("attr_") && value.starts_with('#') {
+                if (key.starts_with("attr_") || key == "Items") && value.starts_with('#') {
                     if let Ok(item_id) = value[1..].parse::<u64>() {
                         if let Some(dims) = self.extract_from_solid(item_id) {
                             return Some(dims);
@@ -186,19 +189,28 @@ impl<'a> GeometryResolver<'a> {
         let entity = self.entities.get(&id)?;
 
         if matches!(entity.ifc_type.0, IfcType::IfcExtrudedAreaSolid) {
-            let profile_id = self.get_ref_attr(entity, 0)?;
-            let depth = self.get_numeric_attr(entity, 3).unwrap_or(1.0);
+            let profile_id = self.get_ref_attr_by_name(entity, "Position")
+                .or_else(|| self.get_ref_attr(entity, 0))?;
+            let depth = self.get_numeric_attr_by_name(entity, "ExtrusionDepth")
+                .or_else(|| self.get_numeric_attr(entity, 3))
+                .unwrap_or(1.0);
 
             let profile = self.entities.get(&profile_id)?;
 
             if matches!(profile.ifc_type.0, IfcType::IfcRectangleProfileDef) {
-                let x_dim = self.get_numeric_attr(profile, 3).unwrap_or(1.0);
-                let y_dim = self.get_numeric_attr(profile, 4).unwrap_or(1.0);
+                let x_dim = self.get_numeric_attr_by_name(profile, "Width")
+                    .or_else(|| self.get_numeric_attr(profile, 3))
+                    .unwrap_or(1.0);
+                let y_dim = self.get_numeric_attr_by_name(profile, "Height")
+                    .or_else(|| self.get_numeric_attr(profile, 4))
+                    .unwrap_or(1.0);
                 return Some([x_dim, y_dim, depth]);
             }
 
             if matches!(profile.ifc_type.0, IfcType::IfcCircleProfileDef) {
-                let radius = self.get_numeric_attr(profile, 3).unwrap_or(0.5);
+                let radius = self.get_numeric_attr_by_name(profile, "Radius")
+                    .or_else(|| self.get_numeric_attr(profile, 3))
+                    .unwrap_or(0.5);
                 return Some([radius * 2.0, radius * 2.0, depth]);
             }
         }
@@ -207,7 +219,7 @@ impl<'a> GeometryResolver<'a> {
     }
 
     fn find_placement_ref(&self, entity: &EntitySnapshot) -> Option<u64> {
-        let placement_attrs = ["attr_5", "attr_6", "attr_7"];
+        let placement_attrs = ["ObjectPlacement", "attr_5", "attr_6", "attr_7"];
         for attr_key in &placement_attrs {
             if let Some(value) = entity.attributes.iter()
                 .find(|(k, _)| k == attr_key)
@@ -241,7 +253,7 @@ impl<'a> GeometryResolver<'a> {
     }
 
     fn find_representation_ref(&self, entity: &EntitySnapshot) -> Option<u64> {
-        let repr_attrs = ["attr_6", "attr_7", "attr_8"];
+        let repr_attrs = ["Representation", "attr_6", "attr_7", "attr_8"];
         for attr_key in &repr_attrs {
             if let Some(value) = entity.attributes.iter()
                 .find(|(k, _)| k == attr_key)
@@ -292,6 +304,25 @@ impl<'a> GeometryResolver<'a> {
         let key = format!("attr_{}", index);
         entity.attributes.iter()
             .find(|(k, _)| k == &key)
+            .and_then(|(_, v)| v.trim().parse::<f64>().ok())
+    }
+
+    fn get_ref_attr_by_name(&self, entity: &EntitySnapshot, name: &str) -> Option<u64> {
+        entity.attributes.iter()
+            .find(|(k, _)| k == name)
+            .and_then(|(_, v)| {
+                let v = v.trim();
+                if v.starts_with('#') {
+                    v[1..].parse::<u64>().ok()
+                } else {
+                    None
+                }
+            })
+    }
+
+    fn get_numeric_attr_by_name(&self, entity: &EntitySnapshot, name: &str) -> Option<f64> {
+        entity.attributes.iter()
+            .find(|(k, _)| k == name)
             .and_then(|(_, v)| v.trim().parse::<f64>().ok())
     }
 
