@@ -179,7 +179,7 @@ function PropertiesPanel({ selectedEntityId, entities, meshes }: PropertiesPanel
           <Section title="Identification">
             <PropertyRow label="Global ID" value={entity.global_id || 'N/A'} copyable />
             <PropertyRow label="Name" value={entity.name || 'N/A'} />
-            <PropertyRow label="Type" value={String(entity.ifc_type)} copyable />
+            <PropertyRow label="Type" value={getIfcTypeStr(entity.ifc_type)} copyable />
             {entity.description && (
               <PropertyRow label="Description" value={entity.description} multiline />
             )}
