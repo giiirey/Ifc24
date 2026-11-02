@@ -81,6 +81,7 @@ pub fn run() {
             commands::file_commands::open_ifc_file,
             commands::model_commands::get_entity_count,
             commands::model_commands::get_entity_by_id,
+            commands::model_commands::get_entity_property_sets,
             commands::model_commands::get_hierarchy_root,
             commands::model_commands::get_children,
             commands::model_commands::search_entities,

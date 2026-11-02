@@ -3,6 +3,8 @@ use std::ffi::{CStr, CString};
 use std::os::raw::c_char;
 use std::os::raw::c_int;
 
+use crate::models::{Property, PropertySet};
+
 include!(concat!(env!("OUT_DIR"), "/bindings.rs"));
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -20,6 +22,13 @@ pub struct IfcGeometryData {
 struct RawAttr {
     name: String,
     value: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct RawPropertySet {
+    name: String,
+    definition_type: String,
+    properties: Vec<RawAttr>,
 }
 
 pub struct IfcModelWrapper {
@@ -93,6 +102,36 @@ impl IfcModelWrapper {
 
         let raw: Vec<RawAttr> = serde_json::from_str(&json_str).unwrap_or_default();
         raw.into_iter().map(|r| (r.name, r.value)).collect()
+    }
+
+    /// Property sets (IfcPropertySet) and quantities (IfcElementQuantity)
+    /// associated with the entity via IfcRelDefinesByProperties.
+    pub fn entity_property_sets(&self, id: u64) -> Vec<PropertySet> {
+        let mut out_len: c_int = 0;
+
+        let json_ptr = unsafe { ifc_entity_property_sets(self.handle, id, &mut out_len) };
+
+        if json_ptr.is_null() {
+            return Vec::new();
+        }
+
+        let json_str = unsafe {
+            let slice = std::slice::from_raw_parts(json_ptr as *const u8, out_len as usize);
+            String::from_utf8_lossy(slice).into_owned()
+        };
+
+        unsafe {
+            ifc_geometry_free(json_ptr);
+        }
+
+        let raw: Vec<RawPropertySet> = serde_json::from_str(&json_str).unwrap_or_default();
+        raw.into_iter()
+            .map(|r| PropertySet {
+                name: r.name,
+                definition_type: r.definition_type,
+                properties: r.properties.into_iter().map(|p| Property { name: p.name, value: p.value }).collect(),
+            })
+            .collect()
     }
 
     pub fn extract_all_geometry(&self) -> Result<Vec<IfcGeometryData>, String> {

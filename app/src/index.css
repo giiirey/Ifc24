@@ -311,6 +311,38 @@ html, body, #root {
   flex-shrink: 0;
 }
 
+.pset-group {
+  margin-top: 8px;
+}
+
+.pset-group:first-child {
+  margin-top: 0;
+}
+
+.pset-header {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  padding: 4px 0 2px;
+}
+
+.pset-name {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--color-text-primary);
+}
+
+.pset-type {
+  font-size: 10px;
+  color: var(--color-text-muted);
+}
+
+.section-note {
+  font-size: 11px;
+  color: var(--color-text-muted);
+  padding: 4px 0;
+}
+
 .copy-btn:hover {
   opacity: 1;
 }

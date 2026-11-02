@@ -35,6 +35,13 @@ export interface MeshData {
   bbox: { min: [number, number, number]; max: [number, number, number] };
 }
 
+/** Property set or quantity attached via IfcRelDefinesByProperties. */
+export interface PropertySetData {
+  name: string;
+  definition_type: string;
+  properties: { name: string; value: string }[];
+}
+
 /**
  * Check if running inside Tauri (has __TAURI__ global)
  */
@@ -154,6 +161,62 @@ async function mockInvoke(_command: string, _args?: unknown): Promise<unknown> {
           ]},
         ]},
       ], expanded: false, has_geometry: true };
+    case 'get_entity_property_sets': {
+      const id = args && typeof args.entity_id === 'number' ? args.entity_id : null;
+      const ifcType = mockEntities.find(e => e.id === id);
+      const typeStr = ifcType
+        ? (typeof ifcType.ifc_type === 'string' ? ifcType.ifc_type : (ifcType.ifc_type as any).name || 'Unknown')
+        : 'IfcElement';
+      // Wall gets a realistic Pset_WallCommon; other elements get a generic pset + Qto.
+      if (typeStr === 'IfcWall') {
+        return [
+          {
+            name: 'Pset_WallCommon',
+            definition_type: 'IfcPropertySet',
+            properties: [
+              { name: 'LoadBearing', value: 'True' },
+              { name: 'FireRating', value: '60' },
+              { name: 'Compartment', value: 'Yes' },
+              { name: 'BasicWallType', value: 'Standard' },
+              { name: 'WallType', value: 'Load-bearing' },
+              { name: 'WallThickness', value: '0.3' },
+              { name: 'Reference', value: 'W-001' },
+            ],
+          },
+          {
+            name: 'Wall_Qto',
+            definition_type: 'IfcElementQuantity',
+            properties: [
+              { name: 'Net_Gross_Weight', value: '1875.42' },
+              { name: 'Gross_Weight', value: '1875.42' },
+              { name: 'Volume', value: '0.73' },
+              { name: 'Area', value: '12.5' },
+              { name: 'Length', value: '12.5' },
+              { name: 'Height', value: '3.0' },
+              { name: 'Width', value: '0.3' },
+            ],
+          },
+        ];
+      }
+      return [
+        {
+          name: `Pset_${typeStr.replace('Ifc', '')}Common`,
+          definition_type: 'IfcPropertySet',
+          properties: [
+            { name: 'Reference', value: `${typeStr.slice(-4)}-001` },
+            { name: 'FireRating', value: '60' },
+          ],
+        },
+        {
+          name: `${typeStr.replace('Ifc', '')}_Qto`,
+          definition_type: 'IfcElementQuantity',
+          properties: [
+            { name: 'Volume', value: '1.25' },
+            { name: 'Area', value: '2.4' },
+          ],
+        },
+      ];
+    }
     case 'search_entities':
       return mockEntities.map(e => e.id);
     case 'get_all_entity_ids':
@@ -235,6 +298,7 @@ export function useTauriIPC() {
     closeModel: () => tauriInvoke<void>('close_model'),
     getEntityCount: () => tauriInvoke<number>('get_entity_count'),
     getEntityById: (id: number) => tauriInvoke<EntitySnapshot>('get_entity_by_id', { entity_id: id }),
+    getEntityPropertySets: (id: number) => tauriInvoke<PropertySetData[]>('get_entity_property_sets', { entity_id: id }),
     getHierarchyRoot: () => tauriInvoke<TreeNodeData | null>('get_hierarchy_root'),
     getChildren: (parentId: number) => tauriInvoke<TreeNodeData[]>('get_children', { entity_id: parentId }),
     searchEntities: (query: string) => tauriInvoke<number[]>('search_entities', { query }),

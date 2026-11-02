@@ -23,6 +23,7 @@ const char* ifc_entity_type(IfcModelHandle model, IfcEntityId id);
 const char* ifc_entity_name(IfcModelHandle model, IfcEntityId id);
 const char* ifc_entity_global_id(IfcModelHandle model, IfcEntityId id);
 char* ifc_entity_attributes(IfcModelHandle model, IfcEntityId id, int* out_len);
+char* ifc_entity_property_sets(IfcModelHandle model, IfcEntityId id, int* out_len);
 
 // Geometry extraction
 char* ifc_geometry_extract(IfcModelHandle model, IfcEntityId entity_id, int* out_len);

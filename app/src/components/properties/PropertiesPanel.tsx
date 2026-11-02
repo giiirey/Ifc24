@@ -1,4 +1,5 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
+import { useTauriIPC, PropertySetData } from '../../hooks/useTauriIPC';
 
 export interface EntityData {
   id: number;
@@ -151,6 +152,10 @@ function getIfcTypeStr(ifcType: string | { name?: string } | undefined): string 
 
 function PropertiesPanel({ selectedEntityId, entities, meshes }: PropertiesPanelProps) {
   const [entity, setEntity] = useState<EntityData | null>(null);
+  const [propertySets, setPropertySets] = useState<PropertySetData[] | null>(null);
+  const [loadingPropertySets, setLoadingPropertySets] = useState(false);
+  const psetRequestRef = useRef(0);
+  const ipc = useTauriIPC();
 
   useEffect(() => {
     if (selectedEntityId !== null) {
@@ -163,8 +168,32 @@ function PropertiesPanel({ selectedEntityId, entities, meshes }: PropertiesPanel
         console.log('[PropertiesPanel] Entity from mock:', JSON.stringify(data, null, 2));
         setEntity(data || null);
       }
+
+      // Fetch property sets for the selected entity. The request counter
+      // guards against races when the selection changes rapidly.
+      const requestId = ++psetRequestRef.current;
+      setLoadingPropertySets(true);
+      setPropertySets(null);
+      ipc
+        .getEntityPropertySets(selectedEntityId)
+        .then((sets) => {
+          if (psetRequestRef.current === requestId) {
+            setPropertySets(Array.isArray(sets) ? sets : []);
+            setLoadingPropertySets(false);
+          }
+        })
+        .catch((err) => {
+          console.warn('[PropertiesPanel] Failed to load property sets:', err);
+          if (psetRequestRef.current === requestId) {
+            setPropertySets([]);
+            setLoadingPropertySets(false);
+          }
+        });
     } else {
+      psetRequestRef.current += 1;
       setEntity(null);
+      setPropertySets(null);
+      setLoadingPropertySets(false);
     }
   }, [selectedEntityId, entities]);
 
@@ -201,6 +230,27 @@ function PropertiesPanel({ selectedEntityId, entities, meshes }: PropertiesPanel
               return <PropertyRow key={`${key}-${i}`} label={key} value={value} copyable={true} />;
             })}
           </Section>
+
+          {propertySets !== null && propertySets.length > 0 ? (
+            <>
+              <Section title="Property Sets">
+                <PsetGroups
+                  sets={propertySets.filter((s) => s.definition_type !== 'IfcElementQuantity')}
+                  loading={loadingPropertySets}
+                />
+              </Section>
+              <Section title="Quantities">
+                <PsetGroups
+                  sets={propertySets.filter((s) => s.definition_type === 'IfcElementQuantity')}
+                  loading={loadingPropertySets}
+                />
+              </Section>
+            </>
+          ) : (
+            <Section title="Property Sets">
+              <PsetGroups sets={propertySets} loading={loadingPropertySets} />
+            </Section>
+          )}
 
           <Section title="Geometry" collapsible defaultOpen={false}>
             {meshes && selectedEntityId !== null ? (() => {
@@ -350,6 +400,33 @@ function getMaterialColor(ifcType: string): string {
     'IfcWindow': '#6BA3D9',
   };
   return colors[ifcType] || '#808080';
+}
+
+function PsetGroups({ sets, loading }: { sets: PropertySetData[] | null; loading: boolean }) {
+  if (loading) {
+    return <p className="section-note">Loading…</p>;
+  }
+  if (!sets) {
+    return null;
+  }
+  if (sets.length === 0) {
+    return <p className="section-note">None</p>;
+  }
+  return (
+    <>
+      {sets.map((ps) => (
+        <div className="pset-group" key={`${ps.name}-${ps.definition_type}`}>
+          <div className="pset-header">
+            <span className="pset-name">{ps.name}</span>
+            <span className="pset-type">{ps.definition_type}</span>
+          </div>
+          {ps.properties.map((p, i) => (
+            <PropertyRow key={`${p.name}-${i}`} label={p.name} value={p.value} copyable />
+          ))}
+        </div>
+      ))}
+    </>
+  );
 }
 
 function Section({ 

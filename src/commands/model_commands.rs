@@ -1,4 +1,4 @@
-use crate::models::{EntitySnapshot, TreeNode};
+use crate::models::{EntitySnapshot, PropertySet, TreeNode};
 use crate::state::get_state;
 
 #[tauri::command]
@@ -14,6 +14,28 @@ pub fn get_entity_by_id(entity_id: u64) -> Result<EntitySnapshot, String> {
     let guard = app.model.lock().map_err(|e| e.to_string())?;
     guard.entities.get(&entity_id).cloned()
         .ok_or_else(|| format!("Entity not found: {}", entity_id))
+}
+
+/// Property sets (IfcPropertySet) and quantities (IfcElementQuantity)
+/// attached to the entity via IfcRelDefinesByProperties.
+/// Results are cached per entity; returns an empty list when the
+/// model was not opened through IfcOpenShell.
+#[tauri::command]
+pub fn get_entity_property_sets(entity_id: u64) -> Result<Vec<PropertySet>, String> {
+    let app = get_state();
+    let mut guard = app.model.lock().map_err(|e| e.to_string())?;
+
+    if let Some(cached) = guard.property_sets_cache.get(&entity_id) {
+        return Ok(cached.clone());
+    }
+
+    let property_sets = match &guard.ifc_model {
+        Some(model) => model.entity_property_sets(entity_id),
+        None => Vec::new(),
+    };
+
+    guard.property_sets_cache.insert(entity_id, property_sets.clone());
+    Ok(property_sets)
 }
 
 #[tauri::command]

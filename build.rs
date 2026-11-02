@@ -20,9 +20,8 @@ fn main() {
     builder.include("/usr/include/opencascade");
     builder.include("/usr/include/eigen3");
 
-    if let Ok(ifc_include_dir) = std::env::var("IFCOPENSHELL_ROOT") {
-        builder.include(PathBuf::from(ifc_include_dir).join("include"));
-    }
+    let ifc_root = std::env::var("IFCOPENSHELL_ROOT").unwrap_or_else(|_| "/usr/local".to_string());
+    builder.include(PathBuf::from(&ifc_root).join("include"));
 
     if boost_available {
         builder.define("IFC_OPENSHELL_AVAILABLE", None);
@@ -40,6 +39,10 @@ fn main() {
     }
 
     println!("cargo:rustc-link-search=native=/usr/lib");
+    println!("cargo:rustc-link-search=native=/usr/local/lib");
+    for dir in [&PathBuf::from(&ifc_root).join("lib"), &PathBuf::from("/usr/local/lib")] {
+        println!("cargo:rustc-link-arg=-Wl,-rpath,{}", dir.display());
+    }
 
     bindgen::Builder::default()
         .header(src_dir.join("ifc_openshell.h").to_string_lossy())
