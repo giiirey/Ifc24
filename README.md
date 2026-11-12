@@ -1,4 +1,4 @@
-# IFC Tauri — IFC Model Visualizer
+# IFC24 — IFC Model Visualizer
 
 A desktop application for opening and exploring IFC (Industry Foundation Classes) building model files. The app is built with [Tauri 2](https://tauri.app), Rust, and React, and uses [IfcOpenShell](https://ifcopenshell.org/) on the back end to parse IFC models and extract geometry.
 
