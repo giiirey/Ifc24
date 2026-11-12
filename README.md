@@ -41,7 +41,6 @@ A desktop application for opening and exploring IFC (Industry Foundation Classes
 │   ├── models/         Shared data types (IPC, entities, geometry)
 │   ├── bindings/       IfcOpenShell C++ wrapper
 │   └── state.rs        Global app state
-├── samples/            Sample IFC models to try out
 ├── build.rs            Compiles the C++ IfcOpenShell wrapper and generates bindings
 └── start.sh            Dev launcher with Wayland/KDE workarounds
 ```
@@ -97,10 +96,6 @@ cargo tauri build --release  # release build
 cargo clippy   # Rust lint checks
 cargo fmt      # format the Rust code
 ```
-
-## Sample models
-
-The `samples/` directory contains a few IFC files (Ifc2x3, Ifc4, and real-world models) that are convenient for testing: `Ifc2x3_SampleCastle.ifc`, `Ifc4_SampleHouse.ifc`, and others.
 
 ## Troubleshooting
 
