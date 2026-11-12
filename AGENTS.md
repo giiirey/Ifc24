@@ -41,6 +41,11 @@
 
 - No explicit tests are defined; `cargo test` will run any discovered Rust tests.
 
+## Conventions
+
+- Write code comments in English.
+- Write commit messages in English.
+
 ## Misc
 
 - Tauri binary is a Rust static library (`staticlib`) and regular library (`rlib`).
