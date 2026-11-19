@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 
 export interface TreeNodeData {
   id: number;
@@ -123,9 +123,19 @@ function TreeNode({
   const isSelected = selectedEntityId === node.id;
   const hasChildren = node.children.length > 0;
 
+  // Scroll the selected node into view when it becomes selected (e.g. after a
+  // viewport click expands its ancestors).
+  const nodeRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (isSelected && nodeRef.current) {
+      nodeRef.current.scrollIntoView({ block: 'nearest' });
+    }
+  }, [isSelected]);
+
   return (
     <div>
       <div
+        ref={nodeRef}
         className={`tree-node ${isSelected ? 'selected' : ''}`}
         style={{ paddingLeft: `${depth * 16 + 8}px` }}
         onClick={() => onSelect(node.id)}
@@ -176,6 +186,7 @@ function getTypeIcon(ifcType: string): string {
     'IfcDoor': '\uD83D\uDEAA',
     'IfcWindow': '\uD83E\ude9F',
     'IfcSpace': '\uD83D\uDCE6',
+    'IfcOpeningElement': '\u25A1',
   };
   return icons[ifcType] || '\u2022';
 }

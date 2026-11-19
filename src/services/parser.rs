@@ -40,7 +40,7 @@ pub async fn parse_and_index(file_path: &str) -> Result<(usize, Option<String>),
     }
 }
 
-fn raw_parse(file_path: &str) -> Result<(HashMap<u64, EntitySnapshot>, Option<String>), String> {
+pub fn raw_parse(file_path: &str) -> Result<(HashMap<u64, EntitySnapshot>, Option<String>), String> {
     debug_log(&format!("Opening file: {}", file_path));
     
     let path = Path::new(file_path);
@@ -105,7 +105,7 @@ fn parse_step_entity(line: &str) -> Option<EntitySnapshot> {
     Some(entity.with_attributes(attrs))
 }
 
-fn parse_ifc_type(s: &str) -> IfcType {
+pub fn parse_ifc_type(s: &str) -> IfcType {
     match s {
         "IFCPROJECT" => IfcType::IfcProject,
         "IFCSITE" => IfcType::IfcSite,
@@ -171,6 +171,23 @@ fn parse_ifc_type(s: &str) -> IfcType {
         "IFCPRESENTATIONSTYLEASSIGNMENT" => IfcType::IfcPresentationStyleAssignment,
         "IFCSURFACESTYLE" => IfcType::IfcSurfaceStyle,
         "IFCSURFACESTYLERENDERING" => IfcType::IfcSurfaceStyleRendering,
+        // Building element product subtypes (e.g. IFCWALLSTANDARDCASE in IFC2X3).
+        // Type objects (IFCWALLTYPE, IFCDOORLININGPROPERTIES, ...) stay Unknown
+        // so they don't pollute the entity tree.
+        t if t.starts_with("IFCWALL") && !t.ends_with("TYPE") && !t.contains("PROPERTIES") => IfcType::IfcWall,
+        t if t.starts_with("IFCSLAB") && !t.ends_with("TYPE") && !t.contains("PROPERTIES") => IfcType::IfcSlab,
+        t if t.starts_with("IFCCOLUMN") && !t.ends_with("TYPE") && !t.contains("PROPERTIES") => IfcType::IfcColumn,
+        t if t.starts_with("IFCBEAM") && !t.ends_with("TYPE") && !t.contains("PROPERTIES") => IfcType::IfcBeam,
+        t if t.starts_with("IFCDOOR") && !t.ends_with("TYPE") && !t.contains("PROPERTIES") => IfcType::IfcDoor,
+        t if t.starts_with("IFCWINDOW") && !t.ends_with("TYPE") && !t.contains("PROPERTIES") => IfcType::IfcWindow,
+        t if t.starts_with("IFCRAILING") && !t.ends_with("TYPE") && !t.contains("PROPERTIES") => IfcType::IfcRailing,
+        t if t.starts_with("IFCSTAIR") && !t.ends_with("TYPE") && !t.contains("PROPERTIES") => IfcType::IfcStair,
+        t if t.starts_with("IFCROOF") && !t.ends_with("TYPE") && !t.contains("PROPERTIES") => IfcType::IfcRoof,
+        t if t.starts_with("IFCCURTAINWALL") && !t.ends_with("TYPE") && !t.contains("PROPERTIES") => IfcType::IfcCurtainWall,
+        t if t.starts_with("IFCFURNITURE") && !t.ends_with("TYPE") && !t.contains("PROPERTIES") => IfcType::IfcFurniture,
+        t if t.starts_with("IFCPLATE") && !t.ends_with("TYPE") && !t.contains("PROPERTIES") => IfcType::IfcPlate,
+        t if t.starts_with("IFCMECHANICALFASTENER") && !t.ends_with("TYPE") && !t.contains("PROPERTIES") => IfcType::IfcMechanicalFastener,
+        t if t.starts_with("IFCOPENINGELEMENT") && !t.ends_with("TYPE") && !t.contains("PROPERTIES") => IfcType::IfcOpeningElement,
         _ => IfcType::Unknown,
     }
 }

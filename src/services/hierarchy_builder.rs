@@ -20,6 +20,12 @@ pub fn build_hierarchy(entities: &HashMap<u64, EntitySnapshot>) -> Result<TreeNo
     // Build spatial containment map: spatial_id -> [element_ids]
     let mut containment_map: HashMap<u64, Vec<u64>> = HashMap::new();
 
+    // Element-level parent map: IfcRelVoidsElement / IfcRelFillingsElement link
+    // an opening (or a filling such as a door/window) to the element it belongs
+    // to. These elements are usually not contained in a spatial structure, so
+    // they must be placed under their parent element in the tree.
+    let mut parent_of: HashMap<u64, u64> = HashMap::new();
+
     // Collect spatial nodes, assembly nodes, and building elements
     let mut spatial_nodes: HashMap<u64, &EntitySnapshot> = HashMap::new();
     let mut assembly_nodes: HashMap<u64, &EntitySnapshot> = HashMap::new();
@@ -55,6 +61,16 @@ pub fn build_hierarchy(entities: &HashMap<u64, EntitySnapshot>) -> Result<TreeNo
                 let (spatial_id, element_ids) = extract_containment_relation(entity);
                 if let Some(spatial_id) = spatial_id {
                     containment_map.entry(spatial_id).or_default().extend(element_ids);
+                }
+            }
+            IfcType::IfcRelVoidsElement | IfcType::IfcRelFillsElement => {
+                // Attributes: ..., RelationshipRootElement (index 4), RelatedOpeningElement /
+                // FillingElement (index 5) — single references.
+                let (relating_id, related_ids) = extract_aggregate_relation(entity);
+                if let Some(relating_id) = relating_id {
+                    if let Some(&related_id) = related_ids.first() {
+                        parent_of.insert(related_id, relating_id);
+                    }
                 }
             }
             IfcType::IfcRelNests => {
@@ -856,38 +872,39 @@ pub fn build_hierarchy(entities: &HashMap<u64, EntitySnapshot>) -> Result<TreeNo
         }
     }
 
-    // Add orphan building elements under appropriate building storeys
+    // Add orphan building elements: openings/fillings go under their parent
+    // element (from IfcRelVoidsElement / IfcRelFillingsElement); everything
+    // else falls back to building storeys.
     let contained_ids: HashSet<u64> = containment_map.values().flatten().cloned().collect();
     let orphan_elements: Vec<&EntitySnapshot> = building_elements
         .iter()
         .filter(|e| !contained_ids.contains(&e.id) && !added_ids.contains(&e.id))
         .map(|e| &**e)
         .collect();
-    
-    if !orphan_elements.is_empty() && storey_len > 0 {
-        for (i, entity) in orphan_elements.iter().enumerate() {
-            let storey_idx = i % storey_len;
-            let storey_id = storey_ids[storey_idx];
-            let elem_node = TreeNode::from_entity(
-                entity.id,
-                &entity.display_name(),
-                &format!("{:?}", entity.ifc_type.0),
-            );
-            if let Some(storey_node) = root.find_by_id_mut(storey_id) {
-                storey_node.add_child(elem_node);
-            }
-            added_ids.insert(entity.id);
+
+    let orphan_ids: HashSet<u64> = orphan_elements.iter().map(|e| e.id).collect();
+
+    // Orphan children grouped by their parent element.
+    let mut orphans_by_parent: HashMap<u64, Vec<u64>> = HashMap::new();
+    for &id in &orphan_ids {
+        if let Some(&p) = parent_of.get(&id) {
+            orphans_by_parent.entry(p).or_default().push(id);
         }
-    } else if !orphan_elements.is_empty() {
-        // No storeys, add under root
-        for entity in &orphan_elements {
-            root.add_child(TreeNode::from_entity(
-                entity.id,
-                &entity.display_name(),
-                &format!("{:?}", entity.ifc_type.0),
-            ));
-            added_ids.insert(entity.id);
-        }
+    }
+
+    // Roots: orphans with no parent, or whose parent is already placed in the
+    // tree. Children are placed when their parent node is created, so the
+    // whole chain is attached in dependency order.
+    let orphan_roots: Vec<u64> = orphan_ids.iter().cloned()
+        .filter(|&id| match parent_of.get(&id) {
+            Some(&p) => !orphan_ids.contains(&p),
+            None => true,
+        })
+        .collect();
+
+    let mut storey_idx = 0usize;
+    for root_id in &orphan_roots {
+        place_orphan_element(&mut root, *root_id, &entities, &mut added_ids, &parent_of, &orphans_by_parent, &storey_ids, &mut storey_idx);
     }
 
     Ok(root)
@@ -907,9 +924,56 @@ fn is_building_element(ifc_type: &IfcType) -> bool {
             | IfcType::IfcRoof
             | IfcType::IfcCurtainWall
             | IfcType::IfcFurniture
+            | IfcType::IfcOpeningElement
             | IfcType::IfcPlate
             | IfcType::IfcMechanicalFastener
     )
+}
+
+// Place an orphan product element into the tree: under its parent element when
+// that parent is already present, otherwise under the next storey (round-robin)
+// or the root. Orphan children of this element are attached recursively.
+fn place_orphan_element(
+    root: &mut TreeNode,
+    id: u64,
+    entities: &HashMap<u64, EntitySnapshot>,
+    added_ids: &mut HashSet<u64>,
+    parent_of: &HashMap<u64, u64>,
+    orphans_by_parent: &HashMap<u64, Vec<u64>>,
+    storey_ids: &[u64],
+    storey_idx: &mut usize,
+) {
+    let entity = match entities.get(&id) {
+        Some(e) => e,
+        None => return,
+    };
+    let node = TreeNode::from_entity(id, &entity.display_name(), &format!("{:?}", entity.ifc_type.0));
+
+    let target_id = parent_of.get(&id)
+        .filter(|p| added_ids.contains(p))
+        .copied()
+        .or_else(|| {
+            if storey_ids.is_empty() {
+                return None;
+            }
+            let idx = *storey_idx % storey_ids.len();
+            *storey_idx += 1;
+            Some(storey_ids[idx])
+        });
+
+    if let Some(target_id) = target_id {
+        if let Some(target) = root.find_by_id_mut(target_id) {
+            target.add_child(node);
+        }
+    } else {
+        root.add_child(node);
+    }
+    added_ids.insert(id);
+
+    let children = orphans_by_parent.get(&id).cloned().unwrap_or_default();
+    for child_id in children {
+        place_orphan_element(root, child_id, entities, added_ids, parent_of, orphans_by_parent, storey_ids, storey_idx);
+    }
 }
 
 fn extract_id_refs(value: &str) -> Vec<u64> {

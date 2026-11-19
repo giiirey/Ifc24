@@ -24,10 +24,17 @@ function App() {
   }, [store.loadedFilePath]);
 
   useEffect(() => {
-    if (selectedEntityId !== null && store.selectedEntityId !== selectedEntityId) {
+    // Keep the store in sync, including clearing the selection.
+    if (store.selectedEntityId !== selectedEntityId) {
       store.selectEntity(selectedEntityId);
     }
   }, [selectedEntityId, store.selectedEntityId, store.selectEntity]);
+
+  // Toolbar "Update view": clear the selection and restore original opacities.
+  const handleUpdateView = () => {
+    setSelectedEntityId(null);
+    store.updateView();
+  };
 
   const handleLoadFile = async () => {
     try {
@@ -195,7 +202,11 @@ function App() {
         </div>
       </div>
 
-      <Viewer3D selectedEntityId={selectedEntityId} />
+      <Viewer3D
+        selectedEntityId={selectedEntityId}
+        onUpdateView={handleUpdateView}
+        onSelect={(id) => setSelectedEntityId(id)}
+      />
 
       <PropertiesPanel
         selectedEntityId={selectedEntityId}

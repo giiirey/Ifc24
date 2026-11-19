@@ -1,5 +1,9 @@
 import { create } from 'zustand';
 
+// Maximum transparency applied to dimmed (non-selected) elements.
+// Each element keeps its own opacity, clamped to at most this value.
+export const DEFAULT_DIM_OPACITY = 0.35;
+
 export interface EntityInfo {
   id: number;
   global_id: string;
@@ -28,6 +32,10 @@ interface ModelStore {
   // UI state
   selectedEntityId: number | null;
   expandedIds: Set<number>;
+
+  // Viewport state
+  dimOpacity: number;    // ceiling for dimmed elements; each element keeps its own opacity below it
+  viewRevision: number;  // bumped by "Update view" so the viewport rebuilds its render data
   
   // Loading state
   isLoading: boolean;
@@ -45,6 +53,9 @@ interface ModelStore {
   setLoadedFilePath: (path: string | null) => void;
   setRemainingIds: (ids: number[]) => void;
   updateBatchProgress: (loaded: number, total: number) => void;
+
+  // Viewport actions
+  updateView: () => void;
   
   // Clear
   clearModel: () => void;
@@ -65,6 +76,8 @@ export const useModelStore = create<ModelStore>((set, get) => ({
   remainingIds: [],
   selectedEntityId: null,
   expandedIds: new Set(),
+  dimOpacity: DEFAULT_DIM_OPACITY,
+  viewRevision: 0,
   isLoading: false,
   loadProgress: 0,
   batchLoadedCount: 0,
@@ -121,6 +134,14 @@ export const useModelStore = create<ModelStore>((set, get) => ({
   setRemainingIds: (ids) => set({ remainingIds: ids, batchLoadedCount: 0, totalBatchCount: Math.ceil(ids.length / 200) }),
   
   updateBatchProgress: (loaded, total) => set({ batchLoadedCount: loaded, totalBatchCount: total }),
+
+  // "Update view": clear the selection and put every element back to its own
+  // opacity, dimmed only up to the default ceiling.
+  updateView: () => set({
+    selectedEntityId: null,
+    dimOpacity: DEFAULT_DIM_OPACITY,
+    viewRevision: get().viewRevision + 1,
+  }),
   
   clearModel: () => set({ 
     entities: new Map(), 
@@ -128,6 +149,8 @@ export const useModelStore = create<ModelStore>((set, get) => ({
     meshes: new Map(), 
     selectedEntityId: null, 
     expandedIds: new Set(),
+    dimOpacity: DEFAULT_DIM_OPACITY,
+    viewRevision: get().viewRevision + 1,
     isLoading: false,
     loadProgress: 0,
     loadedFilePath: null,
