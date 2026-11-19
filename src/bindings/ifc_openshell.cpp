@@ -720,7 +720,13 @@ char* ifc_extract_all_geometry(IfcModelHandle handle, int* out_len) {
         ifcopenshell::geometry::Settings settings;
         settings.get<ifcopenshell::geometry::settings::MesherLinearDeflection>().value = 0.001;
         settings.get<ifcopenshell::geometry::settings::MesherAngularDeflection>().value = 30.0;
-        settings.get<ifcopenshell::geometry::settings::WeldVertices>().value = true;
+        // The OCCT mesher only emits normals when vertices are NOT welded
+        // (OpenCascadeConversionResult.cpp: calculate_normals is gated on
+        // WeldVertices). Welded vertices share normals between faces, so no
+        // normals are emitted here and the renderer averages them instead -
+        // which soft-shades flat faceted geometry and makes elements look
+        // inflated. Rendering wants per-corner normals, so keep them unwelded.
+        settings.get<ifcopenshell::geometry::settings::WeldVertices>().value = false;
 
         auto kernel = std::make_unique<IfcGeom::OpenCascadeKernel>(settings);
         std::vector<IfcGeom::filter_t> filters;

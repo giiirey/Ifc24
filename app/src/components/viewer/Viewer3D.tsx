@@ -245,7 +245,11 @@ function MeshGeometry({
   dim: boolean;
   dimOpacity: number;
 }) {
-  const geometry = useMemo(() => {
+  // Normals from IfcOpenShell are per face corner. They can only be used as a
+  // per-vertex attribute when they match the vertex count one to one; when
+  // they are missing (welded meshes emit no normals) the fallback averages
+  // normals across faces, so shading has to stay flat to keep faces flat.
+  const { geometry, flatShading } = useMemo(() => {
     const geom = new THREE.BufferGeometry();
 
     const posArray = new Float32Array(vertices);
@@ -256,14 +260,15 @@ function MeshGeometry({
       geom.setIndex(new THREE.BufferAttribute(indexArray, 1));
     }
 
-    if (normals.length > 0 && normals.length === vertices.length) {
+    const hasUsableNormals = normals.length > 0 && normals.length === vertices.length;
+    if (hasUsableNormals) {
       const normalArray = new Float32Array(normals);
       geom.setAttribute('normal', new THREE.BufferAttribute(normalArray, 3));
     } else {
       geom.computeVertexNormals();
     }
 
-    return geom;
+    return { geometry: geom, flatShading: !hasUsableNormals };
   }, [vertices, indices, normals]);
 
   useEffect(() => () => geometry.dispose(), [geometry]);
@@ -287,6 +292,7 @@ function MeshGeometry({
         opacity={dim ? Math.min(opacity, dimOpacity) : opacity}
         roughness={0.7}
         metalness={0.1}
+        flatShading={flatShading}
         side={THREE.DoubleSide}
       />
     </mesh>
