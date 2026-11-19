@@ -2,6 +2,8 @@
 
 A desktop application for opening and exploring IFC (Industry Foundation Classes) building model files. The app is built with [Tauri 2](https://tauri.app), Rust, and React, and uses [IfcOpenShell](https://ifcopenshell.org/) on the back end to parse IFC models and extract geometry.
 
+![3D viewport with a loaded IFC model](viewer.png)
+
 ## Features
 
 - Open `.ifc` files through a native file dialog
